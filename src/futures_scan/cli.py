@@ -160,7 +160,10 @@ def chart(
         render_chart(ctx, CHARTS_DIR / symbol_to_filename(symbol))
     console.print(f"rendered [bold]{len(candles_by_symbol)}[/bold] chart pages to [cyan]{CHARTS_DIR}[/cyan]")
 
-    _write_index(exchange_id, timeframe, payload["symbols_scanned"], payload["elapsed_seconds"], hits, {}, candles_by_symbol)
+    # The dashboard shows realised strategy results, so derive them from the
+    # candles we already have (no extra network calls, same rules as `backtest`).
+    trades_by_symbol, _ = run_backtest(candles_by_symbol)
+    _write_index(exchange_id, timeframe, payload["symbols_scanned"], payload["elapsed_seconds"], hits, trades_by_symbol, candles_by_symbol)
 
 
 def _write_index(exchange_id, timeframe, symbols_count, scan_seconds, hits, trades_by_symbol, candles_by_symbol):

@@ -4,386 +4,277 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>futures-scan · {{ exchange|upper }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <style>
 {% include "_theme.css.j2" %}
-.hero-num { font-size: 44px; }
-.tile { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
-.tile .sym { font-weight: 700; font-size: 12px; }
-.sparkline-wrap { margin-top: 10px; }
-.stat-col .row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dotted var(--line); font-size: 11px; }
-.stat-col .row:last-child { border-bottom: none; }
-.lattice-wrap { display: grid; grid-template-columns: 160px 1fr; gap: 14px; }
-@media (max-width: 900px) { .lattice-wrap, .ridge-wrap, .graph-wrap { grid-template-columns: 1fr; } }
-.ridge-wrap { display: grid; grid-template-columns: 160px 1fr; gap: 14px; }
-.graph-wrap { display: grid; grid-template-columns: 1fr 220px; gap: 14px; }
-.ball { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--gray); transition: left 0.5s linear, top 0.5s linear; }
-.ball.win { background: var(--green); }
-.ball.loss { background: var(--gray); }
-#lattice-svg, #ridge-svg { width: 100%; height: auto; }
-.hint { color: var(--ink-soft); font-size: 10px; letter-spacing: 0.06em; }
-.mini-hist { display: flex; align-items: flex-end; gap: 2px; height: 50px; margin-top: 8px; }
-.mini-hist .bar { flex: 1; background: var(--gray); border-radius: 1px 1px 0 0; }
+.graph-body { display: grid; grid-template-columns: 178px 1fr 186px; }
+.graph-body > .side { padding: 10px 12px; min-width: 0; }
+.graph-body > .side.l { border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; }
+.graph-body > .side.r { border-left: 1px solid var(--line-soft); }
+.legend-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-soft); line-height: 1.8; }
+.legend-row .sw { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.mini-hist { display: flex; align-items: flex-end; gap: 2px; height: 54px; margin-top: 6px; }
+.mini-hist .bar { flex: 1; background: var(--gray); border-radius: 1px 1px 0 0; min-height: 2px; }
 .mini-hist .bar.pos { background: var(--green); }
 .mini-hist .bar.neg { background: var(--red); }
+.bigstat { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+.bigstat .k { font-size: 9px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint); }
+.bigstat .v { font-size: 15px; }
+@media (max-width: 1100px) { .graph-body { grid-template-columns: 1fr; } .graph-body > .side.l, .graph-body > .side.r { border: none; border-bottom: 1px solid var(--line-soft); } }
 </style>
 </head>
 <body>
 <div class="wrap">
 
+  {# ------------------------------------------------------------------ header #}
   <div class="header">
     <div class="brand">
       <div class="logo">◆</div>
       <div>
-        <div style="font-weight:700; font-size:14px;">FUTURES-SCAN</div>
-        <div class="label">LIVE ON {{ exchange|upper }} &middot; {{ timeframe }}</div>
+        <div class="label">FUTURES-SCAN · LIVE ON {{ exchange|upper }} · {{ timeframe }}</div>
+        <div class="title pixel">FUTURES-SCAN · <span class="accent">{{ exchange|upper }}</span></div>
       </div>
     </div>
     <div class="meta-right">
-      <span class="chip live"><span class="dot"></span> LIVE</span>
-      <span class="chip">ROUND #{{ scan_round }}</span>
+      <span class="chip live"><span class="dot"></span> LIVE · {{ timeframe|upper }}</span>
+      <span class="chip">ROUND <b>#{{ scan_round }}</b></span>
       <span class="chip" id="utc-clock">{{ generated_at_utc }} UTC</span>
     </div>
   </div>
 
-  <div class="grid cols-2">
-    <div class="card">
-      <div class="label">FUTURES-SCAN &middot; TOTAL PNL</div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px;">
-        <span class="chip">{{ symbols_count }} SYMBOLS SCANNED</span>
-        <span class="chip">{{ overall.total_trades }} TRADES</span>
-        <span class="chip">{{ overall.win_rate_pct }}% WR</span>
-      </div>
-      <div class="hero-num big-number {{ 'pos' if overall.total_pnl_usdt >= 0 else 'neg' }}">
-        {{ '%+.2f'|format(overall.total_pnl_usdt) }} USDT
-      </div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;">
-        <span class="chip">{{ overall.total_trades }} trades</span>
-        <span class="chip">{{ overall.win_rate_pct }}% WR</span>
-        <span class="chip">MDD {{ overall.max_drawdown_usdt }}</span>
-      </div>
-      {% if top_symbols %}
-      <div class="grid cols-4" style="margin-top:12px;">
-        {% for t in top_symbols %}
-        <div class="tile">
-          <div class="sym">{{ t.symbol }}</div>
-          <div class="{{ 'pos' if t.total_pnl_usdt >= 0 else 'neg' }}">{{ '%+.2f'|format(t.total_pnl_usdt) }}</div>
-          <div class="hint">{{ t.total_trades }} tr &middot; {{ t.win_rate_pct }}% wr</div>
+  {# -------------------------------------------------------------------- hero #}
+  <div class="hero">
+    <div class="card flush">
+      <div class="hero-left">
+        <div class="stat-col">
+          <div class="col-title">session ledger</div>
+          {% for r in hero_rows %}
+          <div class="srow"><span class="k">{{ r.label }}</span><span class="lead"></span><span class="v {{ r.tone }}">{{ r.value }}</span></div>
+          {% endfor %}
+          <div class="stat-note">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average — the gate is the whole edge</div>
         </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="hint" style="margin-top:12px;">no closed trades yet</div>
-      {% endif %}
-    </div>
-
-    <div class="card">
-      <div class="label">BEST TRADE</div>
-      {% if best_trade %}
-      <div style="margin-top:6px;">
-        <div class="sym" style="font-size:13px;">{{ best_trade.symbol }}</div>
-        <div class="hero-num big-number pos">&times;{{ '%.2f'|format(1 + best_trade.pnl_pct/100) }}</div>
-        <div class="hint">entry {{ '%.6g'|format(best_trade.entry_price) }} &rarr; exit {{ '%.6g'|format(best_trade.exit_price) }} &middot; {{ best_trade.entry_time_iso }}</div>
-        <div class="{{ 'pos' if best_trade.pnl_usdt >= 0 else 'neg' }}">{{ '%+.2f'|format(best_trade.pnl_usdt) }} USDT ({{ '%+.2f'|format(best_trade.pnl_pct) }}%)</div>
-        <div class="sparkline-wrap">
-          <svg id="pnl-sparkline" viewBox="0 0 300 60" style="width:100%; height:60px;"></svg>
+        <div class="hero-main">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span class="label">FUTURES-SCAN · REALISED PNL</span>
+            <span class="chip accent">RSI MEAN-REVERT</span>
+            <span class="chip">{{ hits|length }} HITS</span>
+          </div>
+          <div class="hero-num pixel {{ 'pos' if overall.total_pnl_usdt >= 0 else 'neg' }}" style="margin-top:6px;">
+            {{ '%+.2f'|format(overall.total_pnl_usdt) }}<span class="hero-unit"> USDT</span>
+          </div>
+          <div class="chiprow">
+            <span class="chip">trades <b>{{ overall.total_trades }}</b></span>
+            <span class="chip">win rate <b>{{ '%.1f'|format(overall.win_rate_pct) }}%</b></span>
+            <span class="chip">sharpe <b>{{ '%.2f'|format(sharpe) }}</b></span>
+            <span class="chip">mdd <b>{{ '%.2f'|format(overall.max_drawdown_usdt) }}</b></span>
+            <span class="chip">edge <b class="{{ 'pos' if edge_pp >= 0 else 'neg' }}">{{ '%+.1f'|format(edge_pp) }}pp</b></span>
+          </div>
+          {% if top_symbols %}
+          <div class="tiles">
+            {% for t in top_symbols %}
+            <div class="tile {{ 'sel' if loop.first }}">
+              <div class="sym">{{ t.short }}</div>
+              <div class="val pixel {{ 'pos' if t.total_pnl_usdt >= 0 else 'neg' }}">{{ '%+.2f'|format(t.total_pnl_usdt) }}</div>
+              <div class="meta">{{ t.total_trades }} tr · {{ t.win_rate_pct }}% wr</div>
+            </div>
+            {% endfor %}
+          </div>
+          {% else %}
+          <div class="muted" style="margin-top:10px;">no closed trades in this window</div>
+          {% endif %}
+          <div class="hero-foot">
+            <span>anon · {{ exchange }} · {{ timeframe }} · notional 1,000 usdt / trade</span>
+            <span class="chip live"><span class="dot"></span> LIVE · CACHED</span>
+          </div>
         </div>
       </div>
-      {% else %}
-      <div class="hint" style="margin-top:6px;">no trades yet</div>
-      {% endif %}
     </div>
-  </div>
 
-  <div class="section-title">
-    <h2>Probability Lattice</h2>
-    <span class="hint">every trade = one ball &middot; scan condition = the gate</span>
-  </div>
-  <div class="card lattice-wrap">
-    <div class="stat-col">
-      <div class="row"><span>trades dropped</span><span>{{ overall.total_trades }}</span></div>
-      <div class="row"><span>landed green %</span><span>{{ overall.win_rate_pct }}%</span></div>
-      <div class="row"><span>ev / trade</span><span>{{ overall.avg_pnl_pct }}%</span></div>
-      <div class="row"><span>session pnl</span><span>{{ overall.total_pnl_usdt }}</span></div>
-    </div>
-    <div>
-      {% if trades %}
-      <svg id="lattice-svg" viewBox="0 0 720 320"></svg>
-      {% else %}
-      <div class="hint">no trades to replay</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="section-title">
-    <h2>Tail Probability Ridge</h2>
-    <span class="hint">distribution of trade returns per symbol &middot; dashed line = take-profit strike</span>
-  </div>
-  <div class="card ridge-wrap">
-    <div class="stat-col">
-      <div class="row"><span>symbols</span><span>{{ trades_by_symbol_pct|length }}</span></div>
-      <div class="row"><span>take-profit strike</span><span>+3%</span></div>
-      <div class="row"><span>best hit</span><span>{{ '%+.2f'|format(best_trade.pnl_pct) if best_trade else '—' }}%</span></div>
-    </div>
-    <div>
-      {% if trades_by_symbol_pct %}
-      <svg id="ridge-svg" viewBox="0 0 720 320"></svg>
-      {% else %}
-      <div class="hint">no closed trades yet</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="section-title">
-    <h2>Relationship Graph</h2>
-    <span class="hint">scan-hit symbols &middot; edges = |return correlation| &gt; 0.5</span>
-  </div>
-  <div class="card graph-wrap">
-    <div>
-      {% if nodes %}
-      <svg id="graph-svg" viewBox="0 0 900 420" style="width:100%; height:auto;"></svg>
-      {% else %}
-      <div class="hint">not enough scan hits for a graph</div>
-      {% endif %}
-    </div>
-    <div class="stat-col">
-      <div class="row"><span>P(UP)</span><span class="pos">{{ p_up }}%</span></div>
-      <div class="row"><span>P(DOWN)</span><span class="neg">{{ p_down }}%</span></div>
-      <div class="row"><span>CONFIDENCE</span><span>{{ overall.win_rate_pct }}%</span></div>
-      <div class="row"><span>NODES</span><span>{{ nodes|length }}</span></div>
-      <div class="row"><span>EDGES</span><span>{{ edges|length }}</span></div>
-      <div class="label" style="margin-top:10px;">24H CHANGE DISTRIBUTION</div>
-      {% if change_24h_list %}
-      <div class="mini-hist" id="mini-hist"></div>
-      {% else %}
-      <div class="hint">no 24h change data</div>
-      {% endif %}
-    </div>
-  </div>
-
-  <div class="section-title">
-    <h2>Scan Hits</h2>
-    <span class="hint">RSI(14) &lt; 30 &amp; volume &ge; 3x 20-bar average</span>
-  </div>
-  <div class="card scroll-x">
-    <table>
-      <thead><tr><th>Symbol</th><th>RSI</th><th>Vol&times;</th><th>Close</th><th>24H%</th></tr></thead>
-      <tbody>
-        {% for h in hits %}
-        {% set link = chart_links[loop.index0] %}
-        <tr>
-          <td><a href="{{ link.path }}">{{ h.symbol }}</a></td>
-          <td>{{ '%.1f'|format(h.rsi) }}</td>
-          <td>{{ '%.2f'|format(h.vol_ratio) }}</td>
-          <td>{{ '%.6g'|format(h.close) }}</td>
-          <td class="{{ 'pos' if h.change_24h_pct is not none and h.change_24h_pct >= 0 else 'neg' }}">
-            {{ '%.2f'|format(h.change_24h_pct) if h.change_24h_pct is not none else 'N/A' }}
-          </td>
-        </tr>
+    <div class="card flush">
+      <div class="wins">
+        <div class="wins-head">
+          <span class="label">★ TOP WINS · {{ best_trade.short if best_trade else '—' }} · {{ exchange|upper }}</span>
+          <span class="label" id="wins-pager">1 / {{ top_wins|length }}</span>
+        </div>
+        {% if top_wins %}
+        <div class="wins-body">
+          <div>
+            <div class="win-mult pixel pos"><span id="win-mult">&times;{{ '%.3f'|format(best_trade.multiple) }}</span><span class="win-plus" id="win-plus">+{{ '%.2f'|format(best_trade.pnl_pct) }}%</span></div>
+            <div class="label" id="win-meta" style="margin-top:6px;">{{ best_trade.entry_time_short }} · {{ best_trade.short }} · {{ best_trade.exit_reason|upper }} · {{ best_trade.bars_held }} BARS</div>
+            <div class="win-flow">
+              <div>
+                <div class="label">ENTRY</div>
+                <div class="pixel" id="win-entry">{{ '%.6g'|format(best_trade.entry_price) }}</div>
+              </div>
+              <div class="arrow">&rarr;</div>
+              <div>
+                <div class="label">EXIT</div>
+                <div class="pixel pos" id="win-exit">{{ '%.6g'|format(best_trade.exit_price) }}</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;" class="{{ 'pos' if best_trade.pnl_usdt >= 0 else 'neg' }}" id="win-pnl">{{ '%+.2f'|format(best_trade.pnl_usdt) }} USDT</div>
+          </div>
+          <div>
+            <div class="label" style="text-align:right;">CUMULATIVE PNL · {{ overall.total_trades }} FILLS</div>
+            <svg id="pnl-curve" viewBox="0 0 320 132" preserveAspectRatio="none" style="height:132px;"></svg>
+            <div class="pager" id="pager-dots"></div>
+          </div>
+        </div>
         {% else %}
-        <tr><td colspan="5" class="hint">no scan hits this round</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        <div class="pane muted" style="padding:12px;">no closed trades yet</div>
+        {% endif %}
+      </div>
+    </div>
   </div>
 
-  <div class="footer">
-    <span><span class="dot pos"></span> AGENT ONLINE &middot; EXCHANGE {{ exchange|upper }}</span>
-    <span>{{ symbols_count }} SYMBOLS &middot; SCAN {{ scan_seconds }}s &middot; TIMEFRAME {{ timeframe }}</span>
-    <span>TRADES {{ overall.total_trades }} &middot; AVG FETCH {{ ((scan_seconds*1000/symbols_count)|round(1)) if symbols_count else 0 }}ms/symbol</span>
+  {# --------------------------------------------------------- probability lattice #}
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Probability Lattice <span class="sub">· {{ overall.total_trades }} trades, one board</span></h2>
+      <span class="hint">every trade = one ball · 7 volatility gates · the scan gate tilts the board</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">live convergence</div>
+        {% for r in lattice_rows %}
+        <div class="srow"><span class="k">{{ r.label }}</span><span class="lead"></span><span class="v {{ r.tone }}">{{ r.value }}</span></div>
+        {% endfor %}
+        <div class="stat-note">law of large numbers — a {{ '%.1f'|format(overall.win_rate_pct) }}% gate only needs repetition, not conviction</div>
+      </div>
+      <div class="pane">
+        {% if trades %}
+        <div style="position:relative;">
+          <canvas id="lattice" style="width:100%; display:block;"></canvas>
+        </div>
+        {% else %}
+        <div class="muted">no trades to drop</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------------- tail ridge #}
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Tail Probability Ridge <span class="sub">· strike landscape</span></h2>
+      <span class="hint">every ridge = one symbol · strike = take-profit · only the tail pays</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">tail scanner</div>
+        {% for r in ridge_rows %}
+        <div class="srow"><span class="k">{{ r.label }}</span><span class="lead"></span><span class="v {{ r.tone }}">{{ r.value }}</span></div>
+        {% endfor %}
+        <div class="stat-note">pennies into the body — the strike only breaks {{ '%.1f'|format(tail_mass_pct) }}% of the time</div>
+      </div>
+      <div class="pane">
+        {% if trades_by_symbol_pct %}
+        <svg id="ridge" viewBox="0 0 1080 420"></svg>
+        {% else %}
+        <div class="muted">no closed trades yet</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ------------------------------------------------------- relationship graph #}
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Relationship Graph <span class="sub">· correlation simulation</span></h2>
+      <span class="hint" id="graph-counters">nodes {{ nodes|length }} · edges {{ edges|length }} · signal {{ '%.1f'|format(signal_pct) }}% · iter 0</span>
+    </div>
+    <div class="graph-body">
+      <div class="side l">
+        <div class="col-title">node class</div>
+        <div class="legend-row"><span class="sw" style="background:#bf2f38"></span> bear signal</div>
+        <div class="legend-row"><span class="sw" style="background:#2c7a4b"></span> bull signal</div>
+        <div class="legend-row"><span class="sw" style="background:#14130f"></span> cluster hub</div>
+        <div class="legend-row"><span class="sw" style="background:#8f8c80"></span> catalyst</div>
+        <div class="legend-row"><span class="sw" style="background:transparent;border-bottom:2px dashed #14130f;border-radius:0;height:0"></span> median path</div>
+        <div style="margin-top:12px;">
+          {% for r in graph_rows %}
+          <div class="srow"><span class="k">{{ r.label }}</span><span class="lead"></span><span class="v {{ r.tone }}">{{ r.value }}</span></div>
+          {% endfor %}
+          <div class="srow"><span class="k">iter / sec</span><span class="lead"></span><span class="v" id="iter-sec">—</span></div>
+          <div class="label" style="margin-top:8px;">convergence <span id="conv-pct">0%</span></div>
+          <div class="bar-track"><div class="bar-fill" id="conv-bar" style="width:0%"></div></div>
+          <div class="srow rule"><span class="k">predicted</span><span class="lead"></span><span class="v {{ 'pos' if predicted_dir == 'UP' else 'neg' }}">{{ '▲ UP' if predicted_dir == 'UP' else '▼ DOWN' }}</span></div>
+          <div class="srow"><span class="k">median fair</span><span class="lead"></span><span class="v">{{ '%.6g'|format(median_fair) if median_fair is not none else '—' }}</span></div>
+        </div>
+      </div>
+      <div class="side" style="padding:6px;">
+        {% if nodes %}
+        <svg id="graph" viewBox="0 0 960 470"></svg>
+        {% else %}
+        <div class="muted" style="padding:10px;">not enough cached candles to build a graph</div>
+        {% endif %}
+      </div>
+      <div class="side r">
+        <div class="bigstat"><span class="k">P(UP)</span><span class="v pixel pos">{{ '%.2f'|format(p_up/100) }}</span></div>
+        <div class="bigstat"><span class="k">P(DOWN)</span><span class="v pixel neg">{{ '%.2f'|format(p_down/100) }}</span></div>
+        <div class="bigstat"><span class="k">edge vs gate</span><span class="v pixel {{ 'pos' if edge_pp >= 0 else 'neg' }}">{{ '%+.1f'|format(edge_pp) }}</span></div>
+        <div class="bigstat"><span class="k">confidence</span><span class="v pixel">{{ '%.1f'|format(confidence_pct) }}%</span></div>
+        <div class="label" style="margin-top:12px;">24H CHANGE DISTRIBUTION</div>
+        {% if change_24h_list %}
+        <div class="mini-hist" id="mini-hist"></div>
+        {% else %}
+        <div class="muted">no 24h data</div>
+        {% endif %}
+        <div class="stat-note" style="padding-top:10px;">p(up) = share of scan hits whose latest whale-momentum is positive</div>
+      </div>
+    </div>
+  </div>
+
+  {# ---------------------------------------------------------------- scan hits #}
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Scan Hits <span class="sub">· {{ hits|length }} symbols</span></h2>
+      <span class="hint">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average</span>
+    </div>
+    <div class="scroll-x" style="padding: 4px 12px 10px;">
+      <table>
+        <thead><tr><th>symbol</th><th>rsi</th><th>vol&times;</th><th>close</th><th>24h%</th><th>trades</th><th>pnl %</th><th>replay</th></tr></thead>
+        <tbody>
+          {% for h in hits %}
+          {% set link = chart_links[loop.index0] %}
+          {% set sym_trades = trades_by_symbol_pct.get(h.symbol, []) %}
+          <tr>
+            <td><a href="{{ link.path }}">{{ h.symbol }}</a></td>
+            <td>{{ '%.1f'|format(h.rsi) }}</td>
+            <td>{{ '%.2f'|format(h.vol_ratio) }}</td>
+            <td>{{ '%.6g'|format(h.close) }}</td>
+            <td class="{{ 'pos' if h.change_24h_pct is not none and h.change_24h_pct >= 0 else 'neg' }}">{{ '%+.2f'|format(h.change_24h_pct) if h.change_24h_pct is not none else 'n/a' }}</td>
+            <td>{{ sym_trades|length }}</td>
+            <td class="{{ 'pos' if sym_trades and (sym_trades|sum) >= 0 else 'neg' }}">{{ '%+.2f'|format(sym_trades|sum) if sym_trades else '—' }}%</td>
+            <td><a href="{{ link.replay }}">replay</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8" class="muted">no scan hits this round</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · TRADER ANON · <b>{{ overall.total_trades }} FILLS</b></span>
+    <span>BACKTEST {{ symbols_count }} SYMBOLS · SCAN {{ scan_seconds }}S · TF {{ timeframe|upper }} · LATENCY <b>{{ ((scan_seconds*1000/symbols_count)|round(1)) if symbols_count else 0 }} MS</b></span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b> · {{ generated_date }}</span>
   </div>
 </div>
 
-<script type="application/json" id="pnl-curve-data">{{ pnl_curve|tojson }}</script>
-<script type="application/json" id="trades-data">{{ trades|tojson }}</script>
-<script type="application/json" id="ridge-data">{{ trades_by_symbol_pct|tojson }}</script>
-<script type="application/json" id="graph-data">{{ {"nodes": nodes, "edges": edges}|tojson }}</script>
-<script type="application/json" id="change24h-data">{{ change_24h_list|tojson }}</script>
+<script type="application/json" id="d-curve">{{ pnl_curve|tojson }}</script>
+<script type="application/json" id="d-trades">{{ trades|tojson }}</script>
+<script type="application/json" id="d-wins">{{ top_wins|tojson }}</script>
+<script type="application/json" id="d-ridge">{{ trades_by_symbol_pct|tojson }}</script>
+<script type="application/json" id="d-graph">{{ {"nodes": nodes, "edges": edges, "hubs": hubs}|tojson }}</script>
+<script type="application/json" id="d-change">{{ change_24h_list|tojson }}</script>
+<script type="application/json" id="d-cfg">{{ {"strike": strike_pct, "stop": stop_pct, "winRate": overall.win_rate_pct, "lossShare": loss_share_pct, "tailMass": tail_mass_pct, "impliedMultiple": implied_multiple, "medianReturn": median_return_pct, "predicted": predicted_dir, "pUp": p_up}|tojson }}</script>
 <script>
-// ---- UTC clock ----
-setInterval(function () {
-  const el = document.getElementById('utc-clock');
-  if (el) el.textContent = new Date().toUTCString().split(' ')[4] + ' UTC';
-}, 1000);
-
-// ---- PnL sparkline ----
-(function () {
-  const svg = document.getElementById('pnl-sparkline');
-  if (!svg) return;
-  const data = JSON.parse(document.getElementById('pnl-curve-data').textContent);
-  if (!data.length) return;
-  const w = 300, h = 60, pad = 4;
-  const min = Math.min(...data, 0), max = Math.max(...data, 0);
-  const range = (max - min) || 1;
-  const pts = data.map((v, i) => {
-    const x = pad + (i / Math.max(1, data.length - 1)) * (w - pad * 2);
-    const y = h - pad - ((v - min) / range) * (h - pad * 2);
-    return x.toFixed(1) + ',' + y.toFixed(1);
-  }).join(' ');
-  const color = data[data.length - 1] >= 0 ? '#2f7d4f' : '#c8323c';
-  svg.innerHTML = '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.5"/>';
-})();
-
-// ---- Probability lattice (Galton board) ----
-(function () {
-  const svg = document.getElementById('lattice-svg');
-  if (!svg) return;
-  const trades = JSON.parse(document.getElementById('trades-data').textContent);
-  const W = 720, H = 320, rows = 8, topY = 20, bottomY = 210, binsY = 230, binsH = 70;
-  const binCount = 9;
-  const binWidth = W / binCount;
-  const bins = new Array(binCount).fill(0);
-  const binWins = new Array(binCount).fill(0);
-
-  let svgHtml = '';
-  // draw pegs
-  for (let r = 0; r < rows; r++) {
-    const count = r + 2;
-    const y = topY + (r / (rows - 1)) * (bottomY - topY);
-    for (let c = 0; c < count; c++) {
-      const x = W / 2 + (c - (count - 1) / 2) * (W / (rows + 3));
-      svgHtml += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2" fill="#d8d5c8"/>`;
-    }
-  }
-  svgHtml += `<line x1="${W/2}" y1="${topY-10}" x2="${W/2}" y2="${bottomY+15}" stroke="#8a8778" stroke-dasharray="3,3" stroke-width="1"/>`;
-  svgHtml += `<text x="${W/2 - 45}" y="${topY - 12}" font-size="9" fill="#8a8778">LOSS SIDE</text>`;
-  svgHtml += `<text x="${W/2 + 10}" y="${topY - 12}" font-size="9" fill="#2f7d4f">PROFIT SIDE</text>`;
-
-  const sample = trades.slice(0, 150);
-  sample.forEach((t, i) => {
-    const bias = t.win ? 0.62 : 0.38;
-    let pos = binCount / 2;
-    for (let r = 0; r < rows; r++) {
-      pos += (Math.random() < bias ? 0.5 : -0.5);
-    }
-    const bin = Math.max(0, Math.min(binCount - 1, Math.round(pos)));
-    bins[bin] += 1;
-    if (t.win) binWins[bin] += 1;
-    const cx = (bin + 0.5) * binWidth;
-    const cy = bottomY + 5;
-    const cls = t.win ? 'win' : 'loss';
-    svgHtml += `<circle class="lattice-ball" data-bin="${bin}" cx="${(W/2).toFixed(1)}" cy="${topY.toFixed(1)}" r="2.4" fill="${t.win ? '#2f7d4f' : '#8a8778'}" opacity="0.85"><animate attributeName="cx" to="${cx.toFixed(1)}" dur="0.6s" begin="${(i*0.03).toFixed(2)}s" fill="freeze"/><animate attributeName="cy" to="${cy.toFixed(1)}" dur="0.6s" begin="${(i*0.03).toFixed(2)}s" fill="freeze"/></circle>`;
-  });
-
-  const maxBin = Math.max(1, ...bins);
-  for (let b = 0; b < binCount; b++) {
-    const barH = (bins[b] / maxBin) * binsH;
-    const x = b * binWidth + binWidth * 0.15;
-    const w = binWidth * 0.7;
-    const y = binsY + binsH - barH;
-    const isGreenSide = b >= binCount / 2;
-    svgHtml += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${barH.toFixed(1)}" fill="${isGreenSide ? '#2f7d4f' : '#8a8778'}" opacity="0.8"/>`;
-  }
-  svg.innerHTML = svgHtml;
-})();
-
-// ---- Tail probability ridge ----
-(function () {
-  const svg = document.getElementById('ridge-svg');
-  if (!svg) return;
-  const data = JSON.parse(document.getElementById('ridge-data').textContent);
-  const symbols = Object.keys(data);
-  if (!symbols.length) return;
-  const W = 720, H = 320, left = 30, right = 20, top = 30, bottom = 30;
-  const xMin = -1.5, xMax = 3.5, strike = 3.0;
-  const rowH = (H - top - bottom) / symbols.length;
-  const x = v => left + ((v - xMin) / (xMax - xMin)) * (W - left - right);
-
-  let html = '';
-  symbols.forEach((sym, idx) => {
-    const values = data[sym];
-    const baseY = top + (symbols.length - idx) * rowH * 0.7 + 20;
-    const bucketCount = 24;
-    const buckets = new Array(bucketCount).fill(0);
-    values.forEach(v => {
-      const clamped = Math.max(xMin, Math.min(xMax, v));
-      const b = Math.min(bucketCount - 1, Math.floor(((clamped - xMin) / (xMax - xMin)) * bucketCount));
-      buckets[b] += 1;
-    });
-    const maxB = Math.max(1, ...buckets);
-    const avg = values.reduce((a, b) => a + b, 0) / values.length;
-    const color = avg >= 0 ? 'rgba(47,125,79,0.35)' : 'rgba(200,50,60,0.35)';
-    let path = `M ${x(xMin).toFixed(1)} ${baseY.toFixed(1)}`;
-    for (let b = 0; b < bucketCount; b++) {
-      const vx = xMin + ((b + 0.5) / bucketCount) * (xMax - xMin);
-      const vy = baseY - (buckets[b] / maxB) * (rowH * 0.9);
-      path += ` L ${x(vx).toFixed(1)} ${vy.toFixed(1)}`;
-    }
-    path += ` L ${x(xMax).toFixed(1)} ${baseY.toFixed(1)} Z`;
-    html += `<path d="${path}" fill="${color}" stroke="#1c1b18" stroke-width="0.6" opacity="0.9"/>`;
-    html += `<text x="4" y="${(baseY - 2).toFixed(1)}" font-size="8" fill="#5a5850">${sym.split('/')[0]}</text>`;
-  });
-  html += `<line x1="${x(strike).toFixed(1)}" y1="${top - 10}" x2="${x(strike).toFixed(1)}" y2="${H - bottom + 10}" stroke="#c8323c" stroke-dasharray="4,3" stroke-width="1"/>`;
-  html += `<text x="${x(strike) + 4}" y="${top - 12}" font-size="9" fill="#c8323c">STRIKE +3%</text>`;
-  svg.innerHTML = html;
-})();
-
-// ---- Relationship graph (d3-force) ----
-(function () {
-  const svgEl = document.getElementById('graph-svg');
-  if (!svgEl || typeof d3 === 'undefined') return;
-  const data = JSON.parse(document.getElementById('graph-data').textContent);
-  const nodes = data.nodes.map(n => Object.assign({}, n, { degree: 0 }));
-  const nodeById = new Map(nodes.map(n => [n.symbol, n]));
-  const links = data.edges.filter(e => nodeById.has(e.a) && nodeById.has(e.b)).map(e => {
-    nodeById.get(e.a).degree++; nodeById.get(e.b).degree++;
-    return { source: e.a, target: e.b, rho: e.rho };
-  });
-
-  const colorFor = k => k === 'bull' ? '#2f7d4f' : k === 'bear' ? '#c8323c' : k === 'hub' ? '#1c1b18' : '#8a8778';
-  const radiusFor = n => n.kind === 'hub' ? 14 : 5 + Math.min(6, n.degree);
-
-  const svg = d3.select(svgEl);
-  const W = 900, H = 420;
-  const sim = d3.forceSimulation(nodes)
-    .force('link', d3.forceLink(links).id(d => d.symbol).distance(70).strength(l => Math.abs(l.rho) * 0.5))
-    .force('charge', d3.forceManyBody().strength(-90))
-    .force('center', d3.forceCenter(W / 2, H / 2))
-    .force('collide', d3.forceCollide(d => radiusFor(d) + 4))
-    .stop();
-  for (let i = 0; i < 250; i++) sim.tick();
-
-  const g = svg.append('g');
-  g.selectAll('line').data(links).enter().append('line')
-    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
-    .attr('x2', d => d.target.x).attr('y2', d => d.target.y)
-    .attr('stroke', '#8a8778').attr('stroke-width', 1)
-    .attr('opacity', d => Math.min(0.9, Math.abs(d.rho)));
-
-  const node = g.selectAll('g.node').data(nodes).enter().append('g');
-  node.append('circle')
-    .attr('cx', d => d.x).attr('cy', d => d.y).attr('r', radiusFor)
-    .attr('fill', d => colorFor(d.kind)).attr('opacity', 0.9);
-  node.append('text')
-    .attr('x', d => d.x + radiusFor(d) + 3).attr('y', d => d.y + 3)
-    .attr('font-size', 8).attr('fill', '#5a5850')
-    .text(d => d.symbol.split('/')[0]);
-})();
-
-// ---- 24h change mini histogram ----
-(function () {
-  const container = document.getElementById('mini-hist');
-  if (!container) return;
-  const values = JSON.parse(document.getElementById('change24h-data').textContent);
-  if (!values.length) return;
-  const min = Math.min(...values), max = Math.max(...values);
-  const bucketCount = 10;
-  const range = (max - min) || 1;
-  const buckets = new Array(bucketCount).fill(0);
-  values.forEach(v => {
-    const b = Math.min(bucketCount - 1, Math.floor(((v - min) / range) * bucketCount));
-    buckets[b] += 1;
-  });
-  const maxB = Math.max(1, ...buckets);
-  container.innerHTML = buckets.map((count, i) => {
-    const mid = min + ((i + 0.5) / bucketCount) * range;
-    const cls = mid >= 0 ? 'pos' : 'neg';
-    const h = Math.max(2, (count / maxB) * 50);
-    return `<div class="bar ${cls}" style="height:${h}px;" title="${mid.toFixed(1)}%"></div>`;
-  }).join('');
-})();
+{% include "_dash.js.j2" %}
 </script>
 </body>
 </html>

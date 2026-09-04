@@ -34,7 +34,30 @@ def build_replay_context(df: pd.DataFrame, symbol: str, exchange: str, timeframe
         for row in working.itertuples()
     ]
     python_trades = generate_trades(working, symbol)
+    wins = [t for t in python_trades if t.pnl_usdt > 0]
+    pnl = sum(t.pnl_usdt for t in python_trades)
+    closes = working["close"].astype(float)
+    stat_rows = [
+        {"label": "bars", "value": f"{len(working):,}", "tone": ""},
+        {"label": "window", "value": f"{days}d", "tone": ""},
+        {"label": "timeframe", "value": timeframe, "tone": ""},
+        {"label": "last close", "value": f"{float(closes.iloc[-1]):.6g}", "tone": ""},
+        {"label": "window return",
+         "value": f"{100*(float(closes.iloc[-1])-float(closes.iloc[0]))/float(closes.iloc[0]):+.2f}%",
+         "tone": "pos" if closes.iloc[-1] >= closes.iloc[0] else "neg"},
+        {"label": "reference fills", "value": f"{len(python_trades)}", "tone": ""},
+        {"label": "reference wins", "value": f"{len(wins)}", "tone": "pos"},
+        {"label": "reference wr",
+         "value": f"{100*len(wins)/len(python_trades):.1f}%" if python_trades else "n/a", "tone": ""},
+        {"label": "reference pnl", "value": f"{pnl:+.2f}", "tone": "pos" if pnl >= 0 else "neg"},
+        {"label": "take profit", "value": "+3.0%", "tone": "pos"},
+        {"label": "stop loss", "value": "-1.5%", "tone": "neg"},
+        {"label": "max hold", "value": "24 bars", "tone": ""},
+        {"label": "fee / side", "value": "0.04%", "tone": ""},
+        {"label": "notional", "value": "1,000", "tone": ""},
+    ]
     return {
+        "stat_rows": stat_rows,
         "symbol": symbol,
         "exchange": exchange,
         "timeframe": timeframe,

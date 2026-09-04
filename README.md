@@ -94,9 +94,36 @@ All USDT-margined perpetual swap symbols on the selected exchange are scanned.
   the trade count against the Python backtest on identical candle data.
 - lightweight-charts is loaded from jsdelivr (`lightweight-charts@4.1.3` standalone
   build); the cdnjs mirror does not host this package.
-- `out/index.html`'s "Relationship Graph" needs `>=20` overlapping return observations
-  between two symbols before it will draw a correlation edge; with a small scan-hit
-  count you may see very few (or zero) edges — that's expected, not a bug.
+- `out/index.html`'s "Relationship Graph" reads the local parquet cache
+  (`data/candles/{exchange}/`); with an empty cache it has no neighbour symbols to add
+  and falls back to the scan hits alone.
+
+## Dashboard metric definitions
+
+Every number on `out/index.html` is derived from the scan JSON, the backtest trades, or
+the cached candles. Nothing is invented. The non-obvious ones:
+
+| Metric | Definition |
+| --- | --- |
+| `sharpe` | mean / stdev of per-trade returns (`pnl_pct`), sample stdev, not annualised |
+| `breakeven wr` | `SL / (TP + SL)` = 1.5 / 4.5 = 33.3% — the win rate at which the TP/SL pair breaks even before fees |
+| `edge vs gate` | realised win rate minus `breakeven wr`, in percentage points |
+| `tail mass` | share of trades whose return reached the take-profit strike (`pnl_pct >= +3%`) |
+| `implied mult` | `1 / tail mass` — the payout a binary on "reaches the strike" would need to be fair |
+| `stop mass` | share of trades that exited at the stop (`pnl_pct <= -1.5%`) |
+| `equity peak` | maximum of the cumulative-PnL curve |
+| `median fair` | median scan-hit close projected forward by the median realised trade return |
+| lattice bin | `clamp(round(pnl_pct), -3, +3)` — one 1%-wide bin per ball; the ball's path through the pegs is chosen so it lands in its real bin |
+| `P(UP)` | share of scan-hit symbols whose latest `whale_momentum` value is positive |
+| `P(DOWN)` | `100 - P(UP)` |
+| `confidence` | `max(P(UP), P(DOWN))` — how one-sided the momentum vote is |
+| graph nodes | scan-hit symbols plus up to 40 cached symbols whose return correlation with any hit is `|rho| >= 0.3` (last 300 bars) |
+| graph edges | node pairs with `|rho| >= 0.3`; only the 60 strongest are drawn, the counters report all of them |
+| `bull/bear paths` | edges with positive / negative `rho` |
+| node colour | green if the symbol's latest `whale_momentum > 0`, red if `< 0`, grey if undefined |
+| cluster hub | `HUB_PRIME` = correlated with BTC at `|rho| >= 0.6`; otherwise `BEAR_CLUSTER` (negative momentum) or `CATALYST_RING` (positive) |
+| `iter` / `iter per sec` | real d3-force simulation ticks, measured in the browser |
+| `convergence` | `1 - alpha` of the running force simulation |
 
 ## Tests
 

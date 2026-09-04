@@ -1,8 +1,8 @@
 """Build the out/index.html dashboard: scan hits, backtest results, and the
 probability-lattice / tail-ridge / relationship-graph visual sections.
 
-All numbers passed into the template come from real scan/backtest output —
-never fabricated.
+All numbers passed into the template come from real scan/backtest output or the
+local candle cache — never fabricated. See README.md for metric definitions.
 """
 
 from __future__ import annotations
@@ -10,12 +10,14 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import asdict
 from pathlib import Path
+from statistics import median
 
-import numpy as np
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from futures_scan.backtest import BacktestSummary
+from futures_scan.render import stats as st
+from futures_scan.render.graph import build_graph
 from futures_scan.scan import ScanHit
 from futures_scan.strategy import Trade
 
@@ -29,30 +31,29 @@ def _env() -> Environment:
     )
 
 
-def _node_kind(symbol: str, trades: list[Trade]) -> str:
-    if symbol.startswith("BTC/"):
-        return "hub"
-    pnl = sum(t.pnl_usdt for t in trades)
-    if not trades:
-        return "catalyst"
-    return "bull" if pnl >= 0 else "bear"
+def _iso(ms: int) -> str:
+    return dt.datetime.utcfromtimestamp(ms / 1000).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _correlation_edges(returns_by_symbol: dict[str, pd.Series], threshold: float = 0.5) -> list[dict]:
-    symbols = list(returns_by_symbol.keys())
-    edges: list[dict] = []
-    for i, a in enumerate(symbols):
-        for b in symbols[i + 1 :]:
-            joined = pd.concat([returns_by_symbol[a], returns_by_symbol[b]], axis=1, join="inner")
-            joined.columns = ["a", "b"]
-            joined = joined.dropna()
-            if len(joined) < 20:
-                continue
-            rho = float(joined["a"].corr(joined["b"]))
-            if pd.isna(rho) or abs(rho) < threshold:
-                continue
-            edges.append({"a": a, "b": b, "rho": round(rho, 3)})
-    return edges
+def _short(ms: int) -> str:
+    return dt.datetime.utcfromtimestamp(ms / 1000).strftime("%b %d %H:%M")
+
+
+def _trade_card(t: Trade) -> dict:
+    return {
+        "symbol": t.symbol,
+        "short": t.symbol.split("/")[0],
+        "multiple": round(1 + t.pnl_pct / 100, 4),
+        "pnl_pct": t.pnl_pct,
+        "pnl_usdt": t.pnl_usdt,
+        "entry_price": t.entry_price,
+        "exit_price": t.exit_price,
+        "entry_time_iso": _iso(t.entry_time),
+        "entry_time_short": _short(t.entry_time),
+        "exit_time_short": _short(t.exit_time),
+        "exit_reason": t.exit_reason,
+        "bars_held": t.bars_held,
+    }
 
 
 def build_index_context(
@@ -69,12 +70,11 @@ def build_index_context(
     all_trades: list[Trade] = [t for trades in trades_by_symbol.values() for t in trades]
     all_trades_sorted = sorted(all_trades, key=lambda t: t.exit_time)
 
-    per_symbol_pnl = {
-        s: sum(t.pnl_usdt for t in ts) for s, ts in trades_by_symbol.items() if ts
-    }
+    per_symbol_pnl = {s: sum(t.pnl_usdt for t in ts) for s, ts in trades_by_symbol.items() if ts}
     top_symbols = [
         {
             "symbol": s,
+            "short": s.split("/")[0],
             "total_pnl_usdt": round(pnl, 2),
             "total_trades": len(trades_by_symbol[s]),
             "win_rate_pct": round(
@@ -84,22 +84,11 @@ def build_index_context(
         for s, pnl in sorted(per_symbol_pnl.items(), key=lambda kv: kv[1], reverse=True)[:4]
     ]
 
-    best_trade = None
-    if all_trades:
-        bt = max(all_trades, key=lambda t: t.pnl_pct)
-        best_trade = {
-            "symbol": bt.symbol,
-            "pnl_pct": bt.pnl_pct,
-            "pnl_usdt": bt.pnl_usdt,
-            "entry_price": bt.entry_price,
-            "exit_price": bt.exit_price,
-            "entry_time_iso": dt.datetime.utcfromtimestamp(bt.entry_time / 1000).strftime(
-                "%Y-%m-%d %H:%M UTC"
-            ),
-        }
+    top_wins = [_trade_card(t) for t in sorted(all_trades, key=lambda t: t.pnl_pct, reverse=True)[:5]]
+    best_trade = top_wins[0] if top_wins else None
 
     running = 0.0
-    pnl_curve = []
+    pnl_curve: list[float] = []
     for t in all_trades_sorted:
         running += t.pnl_usdt
         pnl_curve.append(round(running, 2))
@@ -107,6 +96,7 @@ def build_index_context(
     trades_flat = [
         {
             "symbol": t.symbol,
+            "short": t.symbol.split("/")[0],
             "pnl_usdt": t.pnl_usdt,
             "pnl_pct": t.pnl_pct,
             "exit_reason": t.exit_reason,
@@ -115,24 +105,35 @@ def build_index_context(
         for t in all_trades_sorted
     ]
 
-    trades_by_symbol_pct = {
-        s: [t.pnl_pct for t in ts] for s, ts in trades_by_symbol.items() if ts
-    }
+    trades_by_symbol_pct = {s: [t.pnl_pct for t in ts] for s, ts in trades_by_symbol.items() if ts}
 
-    returns_by_symbol = {
-        s: df["close"].pct_change().dropna() for s, df in candles_by_symbol.items() if len(df) > 20
-    }
-    edges = _correlation_edges(returns_by_symbol)
+    change_by_symbol = {h.symbol: h.change_24h_pct for h in hits}
+    graph = build_graph(
+        exchange=exchange,
+        timeframe=timeframe,
+        hit_symbols=[h.symbol for h in hits],
+        change_by_symbol=change_by_symbol,
+        pnl_by_symbol=per_symbol_pnl,
+    )
 
-    nodes = [
-        {"symbol": s, "kind": _node_kind(s, trades_by_symbol.get(s, []))}
-        for s in candles_by_symbol.keys()
-    ]
-
-    win_trades = sum(1 for t in all_trades if t.pnl_usdt > 0)
-    p_up = round(100 * win_trades / len(all_trades), 1) if all_trades else 0.0
+    rets = [t.pnl_pct for t in all_trades]
+    tail = st.tail_stats(rets)
+    win_rate = overall.win_rate_pct
+    edge_pp = round(win_rate - st.BREAKEVEN_WR_PCT, 1) if all_trades else 0.0
 
     change_24h_list = [h.change_24h_pct for h in hits if h.change_24h_pct is not None]
+
+    graph_rows = [
+        st.stat_row("bear paths", f"{graph.get('bear_paths', 0):,}", "neg"),
+        st.stat_row("bull paths", f"{graph.get('bull_paths', 0):,}", "pos"),
+        st.stat_row("paths sim", f"{len(graph.get('edges', [])):,}"),
+        st.stat_row("bear nodes", f"{graph.get('bear_nodes', 0)}", "neg"),
+        st.stat_row("bull nodes", f"{graph.get('bull_nodes', 0)}", "pos"),
+        st.stat_row("neighbours", f"{graph.get('neighbour_count', 0)}"),
+        st.stat_row("mean |rho|", f"{graph.get('signal_pct', 0.0):.1f}%"),
+    ]
+
+    fair = st.median_fair(hits, all_trades)
 
     return {
         "exchange": exchange,
@@ -141,19 +142,48 @@ def build_index_context(
         "scan_seconds": round(scan_seconds, 1),
         "scan_round": scan_round,
         "generated_at_utc": dt.datetime.utcnow().strftime("%H:%M:%S"),
+        "generated_date": dt.datetime.utcnow().strftime("%Y-%m-%d"),
         "hits": [asdict(h) for h in hits],
         "overall": asdict(overall),
         "top_symbols": top_symbols,
+        "top_wins": top_wins,
         "best_trade": best_trade,
         "pnl_curve": pnl_curve,
         "trades": trades_flat,
         "trades_by_symbol_pct": trades_by_symbol_pct,
-        "edges": edges,
-        "nodes": nodes,
-        "p_up": p_up,
-        "p_down": round(100 - p_up, 1) if all_trades else 0.0,
+        # graph
+        "edges": graph.get("edges", []),
+        "nodes": graph.get("nodes", []),
+        "hubs": graph.get("hubs", []),
+        "p_up": graph.get("p_up", 0.0),
+        "p_down": graph.get("p_down", 0.0),
+        "signal_pct": graph.get("signal_pct", 0.0),
+        "graph_rows": graph_rows,
+        "predicted_dir": "UP" if graph.get("p_up", 0.0) >= 50 else "DOWN",
+        "median_fair": fair,
+        "confidence_pct": max(graph.get("p_up", 0.0), graph.get("p_down", 0.0)),
+        # stat columns
+        "hero_rows": st.hero_rows(all_trades, overall, hits, symbols_count, scan_seconds),
+        "lattice_rows": st.lattice_rows(all_trades, overall, pnl_curve),
+        "ridge_rows": st.ridge_rows(all_trades, overall, len(trades_by_symbol_pct)),
+        # derived scalars
+        "sharpe": st.sharpe(rets),
+        "strike_pct": st.STRIKE_PCT,
+        "stop_pct": st.STOP_PCT,
+        "breakeven_wr": round(st.BREAKEVEN_WR_PCT, 1),
+        "edge_pp": edge_pp,
+        "tail_mass_pct": tail["tail_mass_pct"],
+        "tail_count": tail["tail_count"],
+        "implied_multiple": tail["implied_multiple"],
+        "median_return_pct": round(median(rets), 3) if rets else 0.0,
+        "loss_share_pct": round(100 - win_rate, 1) if all_trades else 0.0,
+        "profit_share_pct": win_rate,
         "change_24h_list": change_24h_list,
-        "chart_links": [{"symbol": h.symbol, "path": f"charts/{h.symbol.replace('/', '-').replace(':', '-')}.html"} for h in hits],
+        "chart_links": [
+            {"symbol": h.symbol, "path": f"charts/{h.symbol.replace('/', '-').replace(':', '-')}.html",
+             "replay": f"replay/{h.symbol.replace('/', '-').replace(':', '-')}.html"}
+            for h in hits
+        ],
     }
 
 
