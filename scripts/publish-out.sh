@@ -13,9 +13,11 @@ git -C "$ROOT" worktree add --detach "$WORK" HEAD >/dev/null 2>&1 || true
 rm -rf "$WORK"/* "$WORK"/.gitignore 2>/dev/null || true
 cp -R "$OUT"/. "$WORK"/
 rm -rf "$WORK/.vercel"
-git -C "$WORK" checkout -q --orphan deploy
+ORPHAN="deploy-tmp-$$"
+git -C "$WORK" checkout -q --orphan "$ORPHAN"
 git -C "$WORK" add -A
 git -C "$WORK" -c user.name=futures-scan-bot -c user.email=bot@futures-scan commit -q -m "publish $(date -u +%FT%TZ)"
-git -C "$WORK" push -q --force "$REMOTE" deploy:deploy
+git -C "$WORK" push -q --force "$REMOTE" "$ORPHAN":deploy
 git -C "$ROOT" worktree remove --force "$WORK" 2>/dev/null || true
+git -C "$ROOT" branch -D "$ORPHAN" deploy >/dev/null 2>&1 || true
 echo "published deploy @ $(date -u +%FT%TZ)"
