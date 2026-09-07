@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DJT/USDT:USDT · futures-scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg: #f3f1eb;
+  --bg-dot: #dedbd0;
+  --card: #fbfaf7;
+  --card-alt: #f7f5ef;
+  --ink: #14130f;
+  --ink-soft: #6b6860;
+  --ink-faint: #9a978c;
+  --line: #d9d5cc;
+  --line-soft: #e8e5dc;
+  --green: #2c7a4b;
+  --green-soft: rgba(44, 122, 75, 0.16);
+  --red: #bf2f38;
+  --red-soft: rgba(191, 47, 56, 0.16);
+  --gray: #8f8c80;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { border-bottom-color: var(--ink); }
+.wrap { max-width: 1680px; margin: 0 auto; padding: 14px 18px 46px; }
+
+/* ---------- primitives ---------- */
+.pixel { font-family: 'Silkscreen', 'IBM Plex Mono', monospace; letter-spacing: 0.01em; }
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.label-ink { color: var(--ink-soft); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+  position: relative;
+}
+.card.flush { padding: 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.chip b { font-weight: 600; color: var(--ink); letter-spacing: 0.06em; }
+.chip.live { color: var(--green); border-color: rgba(44,122,75,0.45); background: var(--green-soft); }
+.chip.accent { border-color: var(--red); color: var(--red); }
+.chip.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--gray); }
+.muted { color: var(--ink-faint); }
+
+/* ---------- header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  padding: 8px 12px; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.header .brand { display: flex; align-items: center; gap: 10px; }
+.header .logo {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--card-alt);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.header .title { font-size: 14px; letter-spacing: 0.06em; }
+.header .title .accent { color: var(--red); }
+.header .meta-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- section frame ---------- */
+.section {
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  margin-top: 10px; overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+.section-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 7px;
+}
+.section-head h2 .bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.section-head h2 .sub { color: var(--ink-faint); font-weight: 400; }
+.section-head .hint {
+  color: var(--ink-faint); font-size: 9px; letter-spacing: 0.1em; text-transform: lowercase;
+}
+.section-body { display: grid; grid-template-columns: 196px 1fr; }
+.section-body.rev { grid-template-columns: 1fr 196px; }
+.section-body > .pane { padding: 10px 12px; min-width: 0; }
+.section-body > .stat-col { border-right: 1px solid var(--line-soft); }
+.section-body.rev > .stat-col { border-right: none; border-left: 1px solid var(--line-soft); }
+
+/* ---------- dotted-leader stat column ---------- */
+.stat-col { padding: 10px 12px; display: flex; flex-direction: column; }
+.stat-col .col-title {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 7px;
+}
+.srow {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 10.5px; line-height: 1.85; color: var(--ink-soft);
+}
+.srow .k { text-transform: lowercase; letter-spacing: 0.03em; white-space: nowrap; }
+.srow .lead {
+  flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); min-width: 8px;
+}
+.srow .v { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.srow.rule { border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 5px; }
+.stat-note {
+  margin-top: auto; padding-top: 12px; font-size: 9px; line-height: 1.6;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+.hero-left { display: grid; grid-template-columns: 196px 1fr; }
+.hero-main { padding: 10px 14px; min-width: 0; }
+.hero-num { font-size: 58px; line-height: 1.05; letter-spacing: -0.01em; }
+.hero-unit { font-size: 20px; color: var(--ink-faint); }
+.chiprow { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.tile {
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 6px 8px;
+  background: var(--card-alt);
+}
+.tile.sel { border-color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tile .sym { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.tile .val { font-size: 13px; margin-top: 1px; }
+.tile .meta { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.05em; }
+.hero-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; font-size: 9px; color: var(--ink-faint); letter-spacing: 0.08em;
+}
+
+/* ---------- top wins ---------- */
+.wins { display: flex; flex-direction: column; height: 100%; }
+.wins-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.wins-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 10px; }
+.win-mult { font-size: 40px; line-height: 1; }
+.win-plus { font-size: 14px; color: var(--ink-faint); vertical-align: super; }
+.win-flow { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+.win-flow .arrow { color: var(--ink-faint); }
+.pager { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.pager i { width: 14px; height: 3px; background: var(--line); border-radius: 2px; cursor: pointer; }
+.pager i.on { background: var(--ink); }
+
+/* ---------- viz ---------- */
+svg { display: block; width: 100%; height: auto; }
+.axis-txt { font-size: 8px; fill: var(--ink-faint); letter-spacing: 0.08em; }
+.boxlabel { font-size: 8px; letter-spacing: 0.1em; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 11px; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px;
+  color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--line);
+}
+tbody tr:hover td { background: var(--card-alt); }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- footer ---------- */
+.statusbar {
+  margin-top: 10px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--card);
+  font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.statusbar b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---------- controls ---------- */
+button.ctrl {
+  font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; color: var(--ink-soft);
+}
+button.ctrl:hover { background: var(--card-alt); color: var(--ink); }
+button.ctrl.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* ---------- progress ---------- */
+.bar-track { height: 6px; background: var(--line-soft); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.bar-fill { height: 100%; background: var(--ink); }
+
+@media (max-width: 1400px) {
+  .hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .section-body, .section-body.rev, .hero-left { grid-template-columns: 1fr; }
+  .section-body > .stat-col, .section-body.rev > .stat-col { border: none; border-bottom: 1px solid var(--line-soft); }
+  .wins-body { grid-template-columns: 1fr; }
+  .hero-num { font-size: 44px; }
+}
+#chart-container { width: 100%; height: 440px; }
+#volume-container { width: 100%; height: 110px; margin-top: 4px; }
+#rsi-container { width: 100%; height: 120px; margin-top: 4px; }
+#whale-container { width: 100%; height: 120px; margin-top: 4px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; font-size: 10px; color: var(--ink-soft); }
+.legend b { color: var(--ink); }
+.back-link { font-size: 10px; color: var(--ink-soft); }
+.back-link:hover { color: var(--ink); }
+.support-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.support-list .lvl { border: 1px dashed var(--line); border-radius: 2px; padding: 3px 8px; font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="label">FUTURES-SCAN · CHART · BINANCEUSDM · 1h</div>
+        <div class="title pixel">DJT <span class="accent">/USDT:USDT</span></div>
+      </div>
+    </div>
+    <div class="meta-right">
+      <a class="back-link" href="../index.html">&larr; back to scan</a>
+      <span class="chip">RSI 29.4</span>
+      <span class="chip">VOL× 6.80</span>
+      <span class="chip neg">
+        24H -4.95%
+      </span>
+      <span class="chip">250 bars</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>DJT/USDT:USDT <span class="sub">· price structure</span></h2>
+      <span class="hint">candles · volume · rsi(14) · whale-momentum · clustered support</span>
+    </div>
+    <div class="section-body">
+    <div class="stat-col">
+      <div class="col-title">symbol ledger</div>
+      
+      <div class="srow"><span class="k">bars</span><span class="lead"></span><span class="v ">250</span></div>
+      
+      <div class="srow"><span class="k">last close</span><span class="lead"></span><span class="v ">9.02</span></div>
+      
+      <div class="srow"><span class="k">window high</span><span class="lead"></span><span class="v ">10.25</span></div>
+      
+      <div class="srow"><span class="k">window low</span><span class="lead"></span><span class="v ">8.99</span></div>
+      
+      <div class="srow"><span class="k">window range</span><span class="lead"></span><span class="v ">14.0%</span></div>
+      
+      <div class="srow"><span class="k">window return</span><span class="lead"></span><span class="v neg">-4.04%</span></div>
+      
+      <div class="srow"><span class="k">rsi(14)</span><span class="lead"></span><span class="v ">29.4</span></div>
+      
+      <div class="srow"><span class="k">vol x avg</span><span class="lead"></span><span class="v ">0.15</span></div>
+      
+      <div class="srow"><span class="k">avg volume</span><span class="lead"></span><span class="v ">2,315</span></div>
+      
+      <div class="srow"><span class="k">whale mom</span><span class="lead"></span><span class="v neg">-16.1</span></div>
+      
+      <div class="srow"><span class="k">entry bars</span><span class="lead"></span><span class="v ">7</span></div>
+      
+      <div class="srow"><span class="k">support lv</span><span class="lead"></span><span class="v ">4</span></div>
+      
+      <div class="stat-note">the gate fires where an oversold rsi meets a volume spike near clustered support</div>
+    </div>
+    <div class="pane">
+    <div class="legend">
+      <span>candles + volume · 1h</span>
+      <span>support: <b>4</b> clustered levels (pivot-low, &plusmn;0.5% tol, &ge;2 touches)</span>
+      <span>entry zone: <b>7</b> bars (RSI&lt;30 + vol&ge;3x &rarr; support &plusmn;0.5% band)</span>
+    </div>
+    <div id="chart-container"></div>
+    <div id="volume-container"></div>
+    <div class="label" style="margin-top:8px;">RSI(14)</div>
+    <div id="rsi-container"></div>
+    <div class="label" style="margin-top:8px;">WHALE-MOMENTUM (custom oscillator, -100..100)</div>
+    <div id="whale-container"></div>
+    <div class="support-list">
+      
+      <div class="lvl">9.05333 · 3 touches</div>
+      
+      <div class="lvl">9.135 · 2 touches</div>
+      
+      <div class="lvl">9.445 · 2 touches</div>
+      
+      <div class="lvl">9.525 · 2 touches</div>
+      
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · SYMBOL DJT/USDT:USDT</span>
+    <span>250 BARS · TF 1H · EXCHANGE BINANCEUSDM</span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b> · LIGHTWEIGHT-CHARTS V4</span>
+  </div>
+</div>
+
+<script type="application/json" id="candles-data">[{"close": 9.4, "high": 9.49, "low": 9.07, "open": 9.41, "rsi": null, "timestamp": 1787648400000, "volume": 19965.29}, {"close": 9.37, "high": 9.53, "low": 9.23, "open": 9.39, "rsi": null, "timestamp": 1787652000000, "volume": 9834.57}, {"close": 9.36, "high": 9.42, "low": 9.3, "open": 9.37, "rsi": null, "timestamp": 1787655600000, "volume": 2936.96}, {"close": 9.38, "high": 9.41, "low": 9.35, "open": 9.36, "rsi": null, "timestamp": 1787659200000, "volume": 935.11}, {"close": 9.15, "high": 9.38, "low": 9.1, "open": 9.38, "rsi": null, "timestamp": 1787662800000, "volume": 6292.35}, {"close": 9.22, "high": 9.28, "low": 9.04, "open": 9.15, "rsi": null, "timestamp": 1787666400000, "volume": 8137.73}, {"close": 9.22, "high": 9.26, "low": 9.11, "open": 9.21, "rsi": null, "timestamp": 1787670000000, "volume": 5542.96}, {"close": 9.22, "high": 9.27, "low": 9.17, "open": 9.24, "rsi": null, "timestamp": 1787673600000, "volume": 3855.13}, {"close": 9.26, "high": 9.29, "low": 9.14, "open": 9.21, "rsi": null, "timestamp": 1787677200000, "volume": 2562.53}, {"close": 9.37, "high": 9.38, "low": 9.26, "open": 9.26, "rsi": null, "timestamp": 1787680800000, "volume": 2762.65}, {"close": 9.36, "high": 9.39, "low": 9.25, "open": 9.35, "rsi": null, "timestamp": 1787684400000, "volume": 856.47}, {"close": 9.34, "high": 9.38, "low": 9.31, "open": 9.36, "rsi": null, "timestamp": 1787688000000, "volume": 669.19}, {"close": 9.37, "high": 9.39, "low": 9.31, "open": 9.37, "rsi": null, "timestamp": 1787691600000, "volume": 979.3}, {"close": 9.35, "high": 9.41, "low": 9.31, "open": 9.39, "rsi": null, "timestamp": 1787695200000, "volume": 797.93}, {"close": 9.35, "high": 9.41, "low": 9.32, "open": 9.36, "rsi": 35.28, "timestamp": 1787698800000, "volume": 687.52}, {"close": 9.37, "high": 9.42, "low": 9.35, "open": 9.37, "rsi": 38.01, "timestamp": 1787702400000, "volume": 302.47}, {"close": 9.36, "high": 9.39, "low": 9.32, "open": 9.37, "rsi": 37.16, "timestamp": 1787706000000, "volume": 788.73}, {"close": 9.43, "high": 9.51, "low": 9.35, "open": 9.35, "rsi": 46.19, "timestamp": 1787709600000, "volume": 3155.8}, {"close": 9.32, "high": 9.52, "low": 9.28, "open": 9.42, "rsi": 37.16, "timestamp": 1787713200000, "volume": 3752.72}, {"close": 9.38, "high": 9.38, "low": 9.29, "open": 9.3, "rsi": 43.63, "timestamp": 1787716800000, "volume": 1494.05}, {"close": 9.36, "high": 9.39, "low": 9.3, "open": 9.36, "rsi": 42.08, "timestamp": 1787720400000, "volume": 1148.43}, {"close": 9.4, "high": 9.46, "low": 9.35, "open": 9.36, "rsi": 46.21, "timestamp": 1787724000000, "volume": 1423.32}, {"close": 9.47, "high": 9.48, "low": 9.35, "open": 9.39, "rsi": 52.58, "timestamp": 1787727600000, "volume": 1432.21}, {"close": 9.43, "high": 9.47, "low": 9.37, "open": 9.46, "rsi": 49.01, "timestamp": 1787731200000, "volume": 1794.93}, {"close": 9.48, "high": 9.48, "low": 9.37, "open": 9.43, "rsi": 53.28, "timestamp": 1787734800000, "volume": 2667.46}, {"close": 9.51, "high": 9.57, "low": 9.4, "open": 9.48, "rsi": 55.68, "timestamp": 1787738400000, "volume": 4583.02}, {"close": 9.43, "high": 9.52, "low": 9.39, "open": 9.51, "rsi": 48.52, "timestamp": 1787742000000, "volume": 9118.06}, {"close": 9.43, "high": 9.48, "low": 9.37, "open": 9.43, "rsi": 48.52, "timestamp": 1787745600000, "volume": 12674.39}, {"close": 9.45, "high": 9.51, "low": 9.37, "open": 9.43, "rsi": 50.37, "timestamp": 1787749200000, "volume": 15409.45}, {"close": 9.34, "high": 9.47, "low": 9.28, "open": 9.46, "rsi": 41.53, "timestamp": 1787752800000, "volume": 15030.28}, {"close": 9.3, "high": 9.38, "low": 9.3, "open": 9.33, "rsi": 38.86, "timestamp": 1787756400000, "volume": 5502.81}, {"close": 9.28, "high": 9.31, "low": 9.21, "open": 9.29, "rsi": 37.56, "timestamp": 1787760000000, "volume": 4947.63}, {"close": 9.3, "high": 9.3, "low": 9.15, "open": 9.27, "rsi": 39.73, "timestamp": 1787763600000, "volume": 4346.42}, {"close": 9.39, "high": 9.41, "low": 9.3, "open": 9.3, "rsi": 48.43, "timestamp": 1787767200000, "volume": 2822.58}, {"close": 9.52, "high": 9.63, "low": 9.36, "open": 9.39, "rsi": 57.88, "timestamp": 1787770800000, "volume": 10075.01}, {"close": 9.5, "high": 9.53, "low": 9.42, "open": 9.53, "rsi": 56.17, "timestamp": 1787774400000, "volume": 3468.79}, {"close": 9.48, "high": 9.56, "low": 9.45, "open": 9.5, "rsi": 54.45, "timestamp": 1787778000000, "volume": 3973.03}, {"close": 9.48, "high": 9.51, "low": 9.42, "open": 9.5, "rsi": 54.45, "timestamp": 1787781600000, "volume": 5485.27}, {"close": 9.48, "high": 9.5, "low": 9.44, "open": 9.48, "rsi": 54.45, "timestamp": 1787785200000, "volume": 2481.99}, {"close": 9.51, "high": 9.52, "low": 9.44, "open": 9.48, "rsi": 56.93, "timestamp": 1787788800000, "volume": 2554.21}, {"close": 9.48, "high": 9.57, "low": 9.46, "open": 9.5, "rsi": 53.77, "timestamp": 1787792400000, "volume": 3142.89}, {"close": 9.47, "high": 9.51, "low": 9.43, "open": 9.48, "rsi": 52.72, "timestamp": 1787796000000, "volume": 3745.42}, {"close": 9.45, "high": 9.49, "low": 9.43, "open": 9.48, "rsi": 50.6, "timestamp": 1787799600000, "volume": 1053.57}, {"close": 9.46, "high": 9.53, "low": 9.42, "open": 9.46, "rsi": 51.65, "timestamp": 1787803200000, "volume": 3763.25}, {"close": 9.45, "high": 9.48, "low": 9.42, "open": 9.46, "rsi": 50.49, "timestamp": 1787806800000, "volume": 739.05}, {"close": 9.44, "high": 9.47, "low": 9.41, "open": 9.46, "rsi": 49.3, "timestamp": 1787810400000, "volume": 1631.15}, {"close": 9.45, "high": 9.49, "low": 9.43, "open": 9.44, "rsi": 50.56, "timestamp": 1787814000000, "volume": 611.89}, {"close": 9.45, "high": 9.5, "low": 9.45, "open": 9.46, "rsi": 50.56, "timestamp": 1787817600000, "volume": 499.66}, {"close": 9.43, "high": 9.47, "low": 9.41, "open": 9.45, "rsi": 47.82, "timestamp": 1787821200000, "volume": 1252.21}, {"close": 9.43, "high": 9.45, "low": 9.39, "open": 9.41, "rsi": 47.82, "timestamp": 1787824800000, "volume": 1906.96}, {"close": 9.45, "high": 9.47, "low": 9.41, "open": 9.42, "rsi": 50.9, "timestamp": 1787828400000, "volume": 787.92}, {"close": 9.47, "high": 9.48, "low": 9.45, "open": 9.47, "rsi": 53.84, "timestamp": 1787832000000, "volume": 293.47}, {"close": 9.54, "high": 9.56, "low": 9.44, "open": 9.46, "rsi": 62.34, "timestamp": 1787835600000, "volume": 5739.91}, {"close": 9.73, "high": 9.8, "low": 9.53, "open": 9.54, "rsi": 75.52, "timestamp": 1787839200000, "volume": 11573.5}, {"close": 9.94, "high": 10.04, "low": 9.73, "open": 9.73, "rsi": 82.72, "timestamp": 1787842800000, "volume": 10009.3}, {"close": 10.17, "high": 10.25, "low": 9.89, "open": 9.93, "rsi": 87.17, "timestamp": 1787846400000, "volume": 10959.93}, {"close": 10.05, "high": 10.21, "low": 10.01, "open": 10.17, "rsi": 76.15, "timestamp": 1787850000000, "volume": 12210.5}, {"close": 9.95, "high": 10.07, "low": 9.94, "open": 10.04, "rsi": 68.39, "timestamp": 1787853600000, "volume": 3209.91}, {"close": 9.75, "high": 9.96, "low": 9.75, "open": 9.95, "rsi": 56.09, "timestamp": 1787857200000, "volume": 6271.25}, {"close": 9.78, "high": 9.79, "low": 9.71, "open": 9.77, "rsi": 57.33, "timestamp": 1787860800000, "volume": 1601.88}, {"close": 9.74, "high": 9.79, "low": 9.71, "open": 9.78, "rsi": 55.09, "timestamp": 1787864400000, "volume": 1260.43}, {"close": 9.74, "high": 9.75, "low": 9.7, "open": 9.74, "rsi": 55.09, "timestamp": 1787868000000, "volume": 1401.7}, {"close": 9.71, "high": 9.74, "low": 9.7, "open": 9.72, "rsi": 53.28, "timestamp": 1787871600000, "volume": 656.12}, {"close": 9.73, "high": 9.79, "low": 9.66, "open": 9.71, "rsi": 54.36, "timestamp": 1787875200000, "volume": 3187.9}, {"close": 9.74, "high": 9.8, "low": 9.71, "open": 9.72, "rsi": 54.92, "timestamp": 1787878800000, "volume": 2317.18}, {"close": 9.8, "high": 9.82, "low": 9.73, "open": 9.74, "rsi": 58.22, "timestamp": 1787882400000, "volume": 1817.91}, {"close": 9.73, "high": 9.83, "low": 9.73, "open": 9.78, "rsi": 53.31, "timestamp": 1787886000000, "volume": 2475.97}, {"close": 9.77, "high": 9.78, "low": 9.73, "open": 9.74, "rsi": 55.62, "timestamp": 1787889600000, "volume": 914.06}, {"close": 9.78, "high": 9.8, "low": 9.73, "open": 9.78, "rsi": 56.2, "timestamp": 1787893200000, "volume": 1390.95}, {"close": 9.81, "high": 9.85, "low": 9.79, "open": 9.8, "rsi": 57.98, "timestamp": 1787896800000, "volume": 4209.59}, {"close": 9.83, "high": 9.84, "low": 9.8, "open": 9.81, "rsi": 59.17, "timestamp": 1787900400000, "volume": 1426.37}, {"close": 9.76, "high": 9.84, "low": 9.75, "open": 9.83, "rsi": 53.46, "timestamp": 1787904000000, "volume": 3331.13}, {"close": 9.81, "high": 9.81, "low": 9.71, "open": 9.75, "rsi": 56.67, "timestamp": 1787907600000, "volume": 5548.05}, {"close": 9.84, "high": 9.84, "low": 9.78, "open": 9.81, "rsi": 58.53, "timestamp": 1787911200000, "volume": 890.88}, {"close": 9.8, "high": 9.83, "low": 9.8, "open": 9.82, "rsi": 55.14, "timestamp": 1787914800000, "volume": 642.79}, {"close": 9.79, "high": 9.81, "low": 9.75, "open": 9.8, "rsi": 54.3, "timestamp": 1787918400000, "volume": 1721.49}, {"close": 9.73, "high": 9.82, "low": 9.61, "open": 9.77, "rsi": 49.4, "timestamp": 1787922000000, "volume": 6433.69}, {"close": 9.77, "high": 9.8, "low": 9.58, "open": 9.71, "rsi": 52.48, "timestamp": 1787925600000, "volume": 6912.33}, {"close": 9.57, "high": 9.78, "low": 9.57, "open": 9.78, "rsi": 39.54, "timestamp": 1787929200000, "volume": 3099.69}, {"close": 9.52, "high": 9.59, "low": 9.49, "open": 9.56, "rsi": 37.08, "timestamp": 1787932800000, "volume": 4139.15}, {"close": 9.56, "high": 9.61, "low": 9.47, "open": 9.52, "rsi": 40.28, "timestamp": 1787936400000, "volume": 3044.55}, {"close": 9.47, "high": 9.55, "low": 9.45, "open": 9.55, "rsi": 35.86, "timestamp": 1787940000000, "volume": 1748.45}, {"close": 9.63, "high": 9.64, "low": 9.49, "open": 9.49, "rsi": 47.0, "timestamp": 1787943600000, "volume": 2168.53}, {"close": 9.63, "high": 9.66, "low": 9.6, "open": 9.64, "rsi": 47.0, "timestamp": 1787947200000, "volume": 1727.62}, {"close": 9.65, "high": 9.65, "low": 9.61, "open": 9.63, "rsi": 48.3, "timestamp": 1787950800000, "volume": 456.39}, {"close": 9.63, "high": 9.64, "low": 9.61, "open": 9.63, "rsi": 47.06, "timestamp": 1787954400000, "volume": 437.23}, {"close": 9.61, "high": 9.63, "low": 9.61, "open": 9.62, "rsi": 45.79, "timestamp": 1787958000000, "volume": 187.29}, {"close": 9.61, "high": 9.69, "low": 9.57, "open": 9.6, "rsi": 45.79, "timestamp": 1787961600000, "volume": 2812.13}, {"close": 9.59, "high": 9.61, "low": 9.59, "open": 9.61, "rsi": 44.4, "timestamp": 1787965200000, "volume": 129.5}, {"close": 9.64, "high": 9.64, "low": 9.59, "open": 9.59, "rsi": 48.6, "timestamp": 1787968800000, "volume": 531.71}, {"close": 9.62, "high": 9.66, "low": 9.62, "open": 9.64, "rsi": 47.07, "timestamp": 1787972400000, "volume": 352.54}, {"close": 9.59, "high": 9.63, "low": 9.59, "open": 9.63, "rsi": 44.78, "timestamp": 1787976000000, "volume": 273.68}, {"close": 9.64, "high": 9.65, "low": 9.54, "open": 9.59, "rsi": 49.2, "timestamp": 1787979600000, "volume": 2390.56}, {"close": 9.6, "high": 9.64, "low": 9.58, "open": 9.64, "rsi": 46.03, "timestamp": 1787983200000, "volume": 205.05}, {"close": 9.59, "high": 9.61, "low": 9.54, "open": 9.59, "rsi": 45.24, "timestamp": 1787986800000, "volume": 2315.44}, {"close": 9.57, "high": 9.59, "low": 9.57, "open": 9.59, "rsi": 43.64, "timestamp": 1787990400000, "volume": 9.62}, {"close": 9.57, "high": 9.6, "low": 9.56, "open": 9.57, "rsi": 43.64, "timestamp": 1787994000000, "volume": 550.25}, {"close": 9.59, "high": 9.59, "low": 9.56, "open": 9.57, "rsi": 45.87, "timestamp": 1787997600000, "volume": 298.41}, {"close": 9.59, "high": 9.59, "low": 9.57, "open": 9.57, "rsi": 45.87, "timestamp": 1788001200000, "volume": 53.65}, {"close": 9.58, "high": 9.59, "low": 9.57, "open": 9.59, "rsi": 44.84, "timestamp": 1788004800000, "volume": 143.27}, {"close": 9.56, "high": 9.58, "low": 9.56, "open": 9.58, "rsi": 42.78, "timestamp": 1788008400000, "volume": 72.88}, {"close": 9.58, "high": 9.6, "low": 9.56, "open": 9.58, "rsi": 45.48, "timestamp": 1788012000000, "volume": 490.64}, {"close": 9.59, "high": 9.62, "low": 9.57, "open": 9.58, "rsi": 46.83, "timestamp": 1788015600000, "volume": 816.56}, {"close": 9.6, "high": 9.61, "low": 9.57, "open": 9.59, "rsi": 48.21, "timestamp": 1788019200000, "volume": 771.38}, {"close": 9.57, "high": 9.61, "low": 9.56, "open": 9.6, "rsi": 44.48, "timestamp": 1788022800000, "volume": 944.22}, {"close": 9.53, "high": 9.57, "low": 9.52, "open": 9.57, "rsi": 40.02, "timestamp": 1788026400000, "volume": 1004.65}, {"close": 9.53, "high": 9.55, "low": 9.53, "open": 9.55, "rsi": 40.02, "timestamp": 1788030000000, "volume": 152.18}, {"close": 9.55, "high": 9.55, "low": 9.52, "open": 9.53, "rsi": 43.31, "timestamp": 1788033600000, "volume": 192.4}, {"close": 9.56, "high": 9.56, "low": 9.53, "open": 9.53, "rsi": 44.94, "timestamp": 1788037200000, "volume": 191.02}, {"close": 9.56, "high": 9.56, "low": 9.54, "open": 9.56, "rsi": 44.94, "timestamp": 1788040800000, "volume": 165.36}, {"close": 9.56, "high": 9.56, "low": 9.53, "open": 9.54, "rsi": 44.94, "timestamp": 1788044400000, "volume": 365.15}, {"close": 9.54, "high": 9.56, "low": 9.54, "open": 9.54, "rsi": 41.93, "timestamp": 1788048000000, "volume": 40.24}, {"close": 9.54, "high": 9.56, "low": 9.54, "open": 9.54, "rsi": 41.93, "timestamp": 1788051600000, "volume": 81.85}, {"close": 9.54, "high": 9.55, "low": 9.52, "open": 9.54, "rsi": 41.93, "timestamp": 1788055200000, "volume": 510.8}, {"close": 9.55, "high": 9.66, "low": 9.53, "open": 9.54, "rsi": 44.26, "timestamp": 1788058800000, "volume": 7006.06}, {"close": 9.55, "high": 9.56, "low": 9.55, "open": 9.56, "rsi": 44.26, "timestamp": 1788062400000, "volume": 49.19}, {"close": 9.56, "high": 9.56, "low": 9.55, "open": 9.55, "rsi": 46.74, "timestamp": 1788066000000, "volume": 47.08}, {"close": 9.56, "high": 9.56, "low": 9.55, "open": 9.56, "rsi": 46.74, "timestamp": 1788069600000, "volume": 26.02}, {"close": 9.57, "high": 9.58, "low": 9.56, "open": 9.56, "rsi": 49.35, "timestamp": 1788073200000, "volume": 241.99}, {"close": 9.57, "high": 9.59, "low": 9.56, "open": 9.57, "rsi": 49.35, "timestamp": 1788076800000, "volume": 447.94}, {"close": 9.58, "high": 9.59, "low": 9.58, "open": 9.59, "rsi": 52.07, "timestamp": 1788080400000, "volume": 230.25}, {"close": 9.55, "high": 9.59, "low": 9.53, "open": 9.59, "rsi": 44.36, "timestamp": 1788084000000, "volume": 1651.53}, {"close": 9.55, "high": 9.55, "low": 9.54, "open": 9.55, "rsi": 44.36, "timestamp": 1788087600000, "volume": 52.27}, {"close": 9.59, "high": 9.6, "low": 9.55, "open": 9.55, "rsi": 54.73, "timestamp": 1788091200000, "volume": 1403.67}, {"close": 9.59, "high": 9.6, "low": 9.57, "open": 9.59, "rsi": 54.73, "timestamp": 1788094800000, "volume": 119.87}, {"close": 9.57, "high": 9.59, "low": 9.57, "open": 9.59, "rsi": 49.39, "timestamp": 1788098400000, "volume": 68.67}, {"close": 9.6, "high": 9.62, "low": 9.57, "open": 9.58, "rsi": 56.28, "timestamp": 1788102000000, "volume": 855.49}, {"close": 9.6, "high": 9.62, "low": 9.58, "open": 9.6, "rsi": 56.28, "timestamp": 1788105600000, "volume": 125.51}, {"close": 9.61, "high": 9.63, "low": 9.6, "open": 9.62, "rsi": 58.46, "timestamp": 1788109200000, "volume": 148.01}, {"close": 9.62, "high": 9.64, "low": 9.61, "open": 9.63, "rsi": 60.59, "timestamp": 1788112800000, "volume": 133.81}, {"close": 9.64, "high": 9.64, "low": 9.62, "open": 9.62, "rsi": 64.49, "timestamp": 1788116400000, "volume": 192.32}, {"close": 9.64, "high": 9.67, "low": 9.62, "open": 9.64, "rsi": 64.49, "timestamp": 1788120000000, "volume": 2246.54}, {"close": 9.58, "high": 9.64, "low": 9.57, "open": 9.64, "rsi": 47.96, "timestamp": 1788123600000, "volume": 1428.19}, {"close": 9.56, "high": 9.61, "low": 9.52, "open": 9.57, "rsi": 43.92, "timestamp": 1788127200000, "volume": 4432.75}, {"close": 9.55, "high": 9.56, "low": 9.53, "open": 9.54, "rsi": 42.01, "timestamp": 1788130800000, "volume": 468.37}, {"close": 9.61, "high": 9.63, "low": 9.44, "open": 9.55, "rsi": 54.71, "timestamp": 1788134400000, "volume": 22868.59}, {"close": 9.59, "high": 9.62, "low": 9.55, "open": 9.61, "rsi": 50.72, "timestamp": 1788138000000, "volume": 1076.46}, {"close": 9.59, "high": 9.6, "low": 9.54, "open": 9.58, "rsi": 50.72, "timestamp": 1788141600000, "volume": 2561.34}, {"close": 9.59, "high": 9.59, "low": 9.55, "open": 9.59, "rsi": 50.72, "timestamp": 1788145200000, "volume": 1278.61}, {"close": 9.61, "high": 9.64, "low": 9.58, "open": 9.59, "rsi": 54.84, "timestamp": 1788148800000, "volume": 1558.08}, {"close": 9.57, "high": 9.61, "low": 9.55, "open": 9.6, "rsi": 46.48, "timestamp": 1788152400000, "volume": 1151.04}, {"close": 9.57, "high": 9.58, "low": 9.55, "open": 9.58, "rsi": 46.48, "timestamp": 1788156000000, "volume": 392.28}, {"close": 9.59, "high": 9.61, "low": 9.56, "open": 9.58, "rsi": 50.83, "timestamp": 1788159600000, "volume": 1467.73}, {"close": 9.66, "high": 9.67, "low": 9.58, "open": 9.59, "rsi": 62.35, "timestamp": 1788163200000, "volume": 1292.77}, {"close": 9.61, "high": 9.66, "low": 9.57, "open": 9.66, "rsi": 52.83, "timestamp": 1788166800000, "volume": 1325.38}, {"close": 9.59, "high": 9.61, "low": 9.58, "open": 9.61, "rsi": 49.57, "timestamp": 1788170400000, "volume": 204.84}, {"close": 9.55, "high": 9.64, "low": 9.54, "open": 9.6, "rsi": 43.75, "timestamp": 1788174000000, "volume": 1924.55}, {"close": 9.56, "high": 9.59, "low": 9.53, "open": 9.57, "rsi": 45.47, "timestamp": 1788177600000, "volume": 1354.13}, {"close": 9.55, "high": 9.73, "low": 9.53, "open": 9.56, "rsi": 44.02, "timestamp": 1788181200000, "volume": 6800.76}, {"close": 9.72, "high": 9.79, "low": 9.53, "open": 9.53, "rsi": 64.67, "timestamp": 1788184800000, "volume": 7493.46}, {"close": 9.82, "high": 9.84, "low": 9.69, "open": 9.7, "rsi": 71.36, "timestamp": 1788188400000, "volume": 2598.0}, {"close": 9.82, "high": 9.85, "low": 9.76, "open": 9.81, "rsi": 71.36, "timestamp": 1788192000000, "volume": 2540.42}, {"close": 9.78, "high": 9.86, "low": 9.74, "open": 9.81, "rsi": 65.6, "timestamp": 1788195600000, "volume": 2030.57}, {"close": 9.74, "high": 9.85, "low": 9.72, "open": 9.8, "rsi": 60.35, "timestamp": 1788199200000, "volume": 2869.96}, {"close": 9.77, "high": 9.8, "low": 9.72, "open": 9.74, "rsi": 62.76, "timestamp": 1788202800000, "volume": 2900.16}, {"close": 9.73, "high": 9.79, "low": 9.73, "open": 9.78, "rsi": 57.72, "timestamp": 1788206400000, "volume": 173.36}, {"close": 9.76, "high": 9.76, "low": 9.73, "open": 9.73, "rsi": 60.3, "timestamp": 1788210000000, "volume": 175.74}, {"close": 9.75, "high": 9.77, "low": 9.73, "open": 9.75, "rsi": 59.01, "timestamp": 1788213600000, "volume": 687.91}, {"close": 9.73, "high": 9.77, "low": 9.73, "open": 9.75, "rsi": 56.41, "timestamp": 1788217200000, "volume": 668.0}, {"close": 9.8, "high": 9.82, "low": 9.71, "open": 9.73, "rsi": 62.61, "timestamp": 1788220800000, "volume": 1426.46}, {"close": 9.75, "high": 9.8, "low": 9.73, "open": 9.78, "rsi": 56.44, "timestamp": 1788224400000, "volume": 1394.35}, {"close": 9.73, "high": 9.82, "low": 9.72, "open": 9.75, "rsi": 54.14, "timestamp": 1788228000000, "volume": 1374.91}, {"close": 9.73, "high": 9.73, "low": 9.72, "open": 9.72, "rsi": 54.14, "timestamp": 1788231600000, "volume": 253.45}, {"close": 9.73, "high": 9.75, "low": 9.71, "open": 9.72, "rsi": 54.14, "timestamp": 1788235200000, "volume": 827.52}, {"close": 9.72, "high": 9.74, "low": 9.71, "open": 9.71, "rsi": 52.79, "timestamp": 1788238800000, "volume": 365.25}, {"close": 9.74, "high": 9.78, "low": 9.73, "open": 9.74, "rsi": 55.19, "timestamp": 1788242400000, "volume": 1172.72}, {"close": 9.74, "high": 9.75, "low": 9.74, "open": 9.74, "rsi": 55.19, "timestamp": 1788246000000, "volume": 61.27}, {"close": 9.7, "high": 9.75, "low": 9.7, "open": 9.75, "rsi": 49.38, "timestamp": 1788249600000, "volume": 493.79}, {"close": 9.7, "high": 9.71, "low": 9.68, "open": 9.71, "rsi": 49.38, "timestamp": 1788253200000, "volume": 359.05}, {"close": 9.72, "high": 9.76, "low": 9.7, "open": 9.7, "rsi": 52.29, "timestamp": 1788256800000, "volume": 1329.66}, {"close": 9.7, "high": 9.73, "low": 9.7, "open": 9.7, "rsi": 49.24, "timestamp": 1788260400000, "volume": 870.87}, {"close": 9.69, "high": 9.73, "low": 9.67, "open": 9.7, "rsi": 47.74, "timestamp": 1788264000000, "volume": 2588.74}, {"close": 9.43, "high": 9.67, "low": 9.32, "open": 9.67, "rsi": 25.76, "timestamp": 1788267600000, "volume": 10229.55}, {"close": 9.45, "high": 9.5, "low": 9.4, "open": 9.42, "rsi": 28.49, "timestamp": 1788271200000, "volume": 1636.4}, {"close": 9.32, "high": 9.42, "low": 9.28, "open": 9.42, "rsi": 22.66, "timestamp": 1788274800000, "volume": 2380.43}, {"close": 9.27, "high": 9.34, "low": 9.24, "open": 9.33, "rsi": 20.89, "timestamp": 1788278400000, "volume": 948.48}, {"close": 9.23, "high": 9.28, "low": 9.22, "open": 9.27, "rsi": 19.57, "timestamp": 1788282000000, "volume": 884.65}, {"close": 9.06, "high": 9.25, "low": 8.99, "open": 9.23, "rsi": 15.19, "timestamp": 1788285600000, "volume": 6715.83}, {"close": 9.07, "high": 9.14, "low": 9.03, "open": 9.04, "rsi": 16.38, "timestamp": 1788289200000, "volume": 3007.41}, {"close": 9.11, "high": 9.12, "low": 9.05, "open": 9.07, "rsi": 21.13, "timestamp": 1788292800000, "volume": 667.66}, {"close": 9.1, "high": 9.1, "low": 9.09, "open": 9.1, "rsi": 20.81, "timestamp": 1788296400000, "volume": 260.53}, {"close": 9.12, "high": 9.12, "low": 9.09, "open": 9.1, "rsi": 23.3, "timestamp": 1788300000000, "volume": 160.11}, {"close": 9.14, "high": 9.18, "low": 9.1, "open": 9.12, "rsi": 25.81, "timestamp": 1788303600000, "volume": 2770.52}, {"close": 9.11, "high": 9.15, "low": 9.07, "open": 9.14, "rsi": 24.52, "timestamp": 1788307200000, "volume": 1535.16}, {"close": 9.12, "high": 9.13, "low": 9.04, "open": 9.1, "rsi": 25.85, "timestamp": 1788310800000, "volume": 1638.02}, {"close": 9.11, "high": 9.12, "low": 9.06, "open": 9.12, "rsi": 25.37, "timestamp": 1788314400000, "volume": 499.67}, {"close": 9.12, "high": 9.12, "low": 9.11, "open": 9.11, "rsi": 26.84, "timestamp": 1788318000000, "volume": 178.51}, {"close": 9.06, "high": 9.12, "low": 9.06, "open": 9.12, "rsi": 23.8, "timestamp": 1788321600000, "volume": 512.21}, {"close": 9.06, "high": 9.09, "low": 9.06, "open": 9.08, "rsi": 23.8, "timestamp": 1788325200000, "volume": 617.26}, {"close": 9.08, "high": 9.09, "low": 9.06, "open": 9.08, "rsi": 27.0, "timestamp": 1788328800000, "volume": 758.33}, {"close": 9.11, "high": 9.12, "low": 9.06, "open": 9.08, "rsi": 31.63, "timestamp": 1788332400000, "volume": 1653.77}, {"close": 9.07, "high": 9.15, "low": 9.06, "open": 9.11, "rsi": 28.99, "timestamp": 1788336000000, "volume": 887.25}, {"close": 9.13, "high": 9.14, "low": 9.05, "open": 9.07, "rsi": 37.43, "timestamp": 1788339600000, "volume": 1483.86}, {"close": 9.11, "high": 9.14, "low": 9.01, "open": 9.13, "rsi": 35.9, "timestamp": 1788343200000, "volume": 5355.51}, {"close": 9.04, "high": 9.13, "low": 9.02, "open": 9.12, "rsi": 31.1, "timestamp": 1788346800000, "volume": 841.94}, {"close": 9.09, "high": 9.12, "low": 9.04, "open": 9.05, "rsi": 37.52, "timestamp": 1788350400000, "volume": 1183.03}, {"close": 9.32, "high": 9.34, "low": 9.01, "open": 9.06, "rsi": 57.26, "timestamp": 1788354000000, "volume": 5304.78}, {"close": 9.4, "high": 9.48, "low": 9.31, "open": 9.32, "rsi": 61.78, "timestamp": 1788357600000, "volume": 4043.22}, {"close": 9.27, "high": 9.44, "low": 9.27, "open": 9.4, "rsi": 52.13, "timestamp": 1788361200000, "volume": 1663.51}, {"close": 9.27, "high": 9.29, "low": 9.22, "open": 9.26, "rsi": 52.13, "timestamp": 1788364800000, "volume": 1292.69}, {"close": 9.15, "high": 9.28, "low": 9.13, "open": 9.27, "rsi": 44.66, "timestamp": 1788368400000, "volume": 1444.66}, {"close": 9.14, "high": 9.23, "low": 9.14, "open": 9.15, "rsi": 44.09, "timestamp": 1788372000000, "volume": 1209.66}, {"close": 9.14, "high": 9.2, "low": 9.11, "open": 9.14, "rsi": 44.09, "timestamp": 1788375600000, "volume": 1488.56}, {"close": 9.17, "high": 9.22, "low": 9.14, "open": 9.14, "rsi": 46.46, "timestamp": 1788379200000, "volume": 1739.45}, {"close": 9.13, "high": 9.19, "low": 9.13, "open": 9.18, "rsi": 43.8, "timestamp": 1788382800000, "volume": 357.92}, {"close": 9.17, "high": 9.17, "low": 9.13, "open": 9.13, "rsi": 47.06, "timestamp": 1788386400000, "volume": 37.87}, {"close": 9.19, "high": 9.19, "low": 9.15, "open": 9.15, "rsi": 48.67, "timestamp": 1788390000000, "volume": 356.73}, {"close": 9.18, "high": 9.19, "low": 9.09, "open": 9.19, "rsi": 47.89, "timestamp": 1788393600000, "volume": 1890.77}, {"close": 9.12, "high": 9.18, "low": 9.08, "open": 9.18, "rsi": 43.38, "timestamp": 1788397200000, "volume": 3100.76}, {"close": 9.18, "high": 9.18, "low": 9.12, "open": 9.14, "rsi": 48.59, "timestamp": 1788400800000, "volume": 711.88}, {"close": 9.14, "high": 9.18, "low": 9.14, "open": 9.18, "rsi": 45.58, "timestamp": 1788404400000, "volume": 126.6}, {"close": 9.17, "high": 9.17, "low": 9.13, "open": 9.14, "rsi": 48.17, "timestamp": 1788408000000, "volume": 201.25}, {"close": 9.17, "high": 9.19, "low": 9.11, "open": 9.17, "rsi": 48.17, "timestamp": 1788411600000, "volume": 1647.66}, {"close": 9.19, "high": 9.21, "low": 9.17, "open": 9.17, "rsi": 50.01, "timestamp": 1788415200000, "volume": 133.4}, {"close": 9.14, "high": 9.21, "low": 9.13, "open": 9.21, "rsi": 45.65, "timestamp": 1788418800000, "volume": 1183.72}, {"close": 9.2, "high": 9.21, "low": 9.14, "open": 9.14, "rsi": 51.16, "timestamp": 1788422400000, "volume": 1058.07}, {"close": 9.18, "high": 9.24, "low": 9.16, "open": 9.2, "rsi": 49.36, "timestamp": 1788426000000, "volume": 1635.39}, {"close": 9.18, "high": 9.18, "low": 9.13, "open": 9.18, "rsi": 49.36, "timestamp": 1788429600000, "volume": 446.72}, {"close": 9.17, "high": 9.2, "low": 9.12, "open": 9.18, "rsi": 48.38, "timestamp": 1788433200000, "volume": 1425.44}, {"close": 9.27, "high": 9.29, "low": 9.16, "open": 9.18, "rsi": 57.51, "timestamp": 1788436800000, "volume": 1217.24}, {"close": 9.51, "high": 9.62, "low": 9.23, "open": 9.27, "rsi": 70.84, "timestamp": 1788440400000, "volume": 9924.65}, {"close": 9.66, "high": 9.67, "low": 9.43, "open": 9.5, "rsi": 75.93, "timestamp": 1788444000000, "volume": 4405.89}, {"close": 9.55, "high": 9.68, "low": 9.54, "open": 9.65, "rsi": 66.74, "timestamp": 1788447600000, "volume": 2071.56}, {"close": 9.49, "high": 9.57, "low": 9.47, "open": 9.55, "rsi": 62.31, "timestamp": 1788451200000, "volume": 3169.45}, {"close": 9.58, "high": 9.62, "low": 9.5, "open": 9.52, "rsi": 65.96, "timestamp": 1788454800000, "volume": 1453.71}, {"close": 9.49, "high": 9.61, "low": 9.47, "open": 9.6, "rsi": 59.73, "timestamp": 1788458400000, "volume": 765.87}, {"close": 9.5, "high": 9.57, "low": 9.47, "open": 9.49, "rsi": 60.18, "timestamp": 1788462000000, "volume": 1094.76}, {"close": 9.48, "high": 9.51, "low": 9.47, "open": 9.5, "rsi": 58.76, "timestamp": 1788465600000, "volume": 545.64}, {"close": 9.5, "high": 9.52, "low": 9.47, "open": 9.47, "rsi": 59.78, "timestamp": 1788469200000, "volume": 287.55}, {"close": 9.51, "high": 9.53, "low": 9.49, "open": 9.5, "rsi": 60.31, "timestamp": 1788472800000, "volume": 1082.18}, {"close": 9.5, "high": 9.52, "low": 9.48, "open": 9.5, "rsi": 59.47, "timestamp": 1788476400000, "volume": 626.36}, {"close": 9.53, "high": 9.53, "low": 9.49, "open": 9.51, "rsi": 61.21, "timestamp": 1788480000000, "volume": 83.23}, {"close": 9.51, "high": 9.54, "low": 9.49, "open": 9.53, "rsi": 59.38, "timestamp": 1788483600000, "volume": 1318.32}, {"close": 9.49, "high": 9.54, "low": 9.49, "open": 9.49, "rsi": 57.52, "timestamp": 1788487200000, "volume": 667.45}, {"close": 9.51, "high": 9.52, "low": 9.48, "open": 9.52, "rsi": 58.9, "timestamp": 1788490800000, "volume": 263.81}, {"close": 9.53, "high": 9.53, "low": 9.5, "open": 9.5, "rsi": 60.3, "timestamp": 1788494400000, "volume": 249.62}, {"close": 9.53, "high": 9.53, "low": 9.51, "open": 9.51, "rsi": 60.3, "timestamp": 1788498000000, "volume": 580.3}, {"close": 9.51, "high": 9.53, "low": 9.51, "open": 9.53, "rsi": 58.02, "timestamp": 1788501600000, "volume": 93.67}, {"close": 9.5, "high": 9.53, "low": 9.49, "open": 9.53, "rsi": 56.86, "timestamp": 1788505200000, "volume": 322.02}, {"close": 9.55, "high": 9.55, "low": 9.49, "open": 9.5, "rsi": 61.05, "timestamp": 1788508800000, "volume": 388.64}, {"close": 9.53, "high": 9.53, "low": 9.49, "open": 9.53, "rsi": 58.6, "timestamp": 1788512400000, "volume": 752.79}, {"close": 9.51, "high": 9.52, "low": 9.5, "open": 9.51, "rsi": 56.17, "timestamp": 1788516000000, "volume": 35.31}, {"close": 9.54, "high": 9.55, "low": 9.52, "open": 9.53, "rsi": 58.92, "timestamp": 1788519600000, "volume": 176.81}, {"close": 9.37, "high": 9.53, "low": 9.37, "open": 9.53, "rsi": 42.6, "timestamp": 1788523200000, "volume": 2530.46}, {"close": 9.34, "high": 9.45, "low": 9.3, "open": 9.41, "rsi": 40.47, "timestamp": 1788526800000, "volume": 5657.9}, {"close": 9.1, "high": 9.33, "low": 9.09, "open": 9.33, "rsi": 28.29, "timestamp": 1788530400000, "volume": 3254.89}, {"close": 9.05, "high": 9.07, "low": 9.03, "open": 9.07, "rsi": 26.5, "timestamp": 1788534000000, "volume": 299.21}, {"close": 9.13, "high": 9.15, "low": 9.12, "open": 9.12, "rsi": 33.73, "timestamp": 1788537600000, "volume": 385.07}, {"close": 9.05, "high": 9.07, "low": 9.02, "open": 9.07, "rsi": 30.5, "timestamp": 1788541200000, "volume": 6480.37}, {"close": 9.02, "high": 9.02, "low": 9.01, "open": 9.01, "rsi": 29.36, "timestamp": 1788544800000, "volume": 183.02}]</script>
+<script type="application/json" id="support-data">[{"price": 9.05333333, "touches": 3}, {"price": 9.135, "touches": 2}, {"price": 9.445, "touches": 2}, {"price": 9.525, "touches": 2}]</script>
+<script type="application/json" id="signals-data">[{"timestamp": 1788267600000}, {"timestamp": 1788271200000}, {"timestamp": 1788285600000}, {"timestamp": 1788289200000}, {"timestamp": 1788530400000}, {"timestamp": 1788534000000}, {"timestamp": 1788544800000}]</script>
+<script type="application/json" id="whale-data">[{"timestamp": 1787648400000, "value": 0.0}, {"timestamp": 1787652000000, "value": 0.0}, {"timestamp": 1787655600000, "value": 0.0}, {"timestamp": 1787659200000, "value": 0.0}, {"timestamp": 1787662800000, "value": 0.0}, {"timestamp": 1787666400000, "value": 0.0}, {"timestamp": 1787670000000, "value": 0.0}, {"timestamp": 1787673600000, "value": 0.0}, {"timestamp": 1787677200000, "value": 0.0}, {"timestamp": 1787680800000, "value": 0.0}, {"timestamp": 1787684400000, "value": 0.0}, {"timestamp": 1787688000000, "value": 0.0}, {"timestamp": 1787691600000, "value": 0.0}, {"timestamp": 1787695200000, "value": 0.0}, {"timestamp": 1787698800000, "value": 0.0}, {"timestamp": 1787702400000, "value": 0.0}, {"timestamp": 1787706000000, "value": 0.0}, {"timestamp": 1787709600000, "value": 0.0}, {"timestamp": 1787713200000, "value": 0.0}, {"timestamp": 1787716800000, "value": 0.0}, {"timestamp": 1787720400000, "value": 0.0}, {"timestamp": 1787724000000, "value": 0.0}, {"timestamp": 1787727600000, "value": 0.0}, {"timestamp": 1787731200000, "value": 0.0}, {"timestamp": 1787734800000, "value": 0.0}, {"timestamp": 1787738400000, "value": 0.0}, {"timestamp": 1787742000000, "value": 0.0}, {"timestamp": 1787745600000, "value": 0.0}, {"timestamp": 1787749200000, "value": 0.0}, {"timestamp": 1787752800000, "value": 0.0}, {"timestamp": 1787756400000, "value": 0.0}, {"timestamp": 1787760000000, "value": 0.0}, {"timestamp": 1787763600000, "value": 0.0}, {"timestamp": 1787767200000, "value": 0.0}, {"timestamp": 1787770800000, "value": 0.0}, {"timestamp": 1787774400000, "value": 0.0}, {"timestamp": 1787778000000, "value": 0.0}, {"timestamp": 1787781600000, "value": 0.0}, {"timestamp": 1787785200000, "value": 0.0}, {"timestamp": 1787788800000, "value": 0.0}, {"timestamp": 1787792400000, "value": 0.0}, {"timestamp": 1787796000000, "value": 0.0}, {"timestamp": 1787799600000, "value": 0.0}, {"timestamp": 1787803200000, "value": -10.23}, {"timestamp": 1787806800000, "value": -9.85}, {"timestamp": 1787810400000, "value": -10.51}, {"timestamp": 1787814000000, "value": -9.06}, {"timestamp": 1787817600000, "value": -7.84}, {"timestamp": 1787821200000, "value": -7.28}, {"timestamp": 1787824800000, "value": -5.97}, {"timestamp": 1787828400000, "value": -6.82}, {"timestamp": 1787832000000, "value": -4.6}, {"timestamp": 1787835600000, "value": 26.99}, {"timestamp": 1787839200000, "value": 100.0}, {"timestamp": 1787842800000, "value": 100.0}, {"timestamp": 1787846400000, "value": 100.0}, {"timestamp": 1787850000000, "value": 100.0}, {"timestamp": 1787853600000, "value": 80.77}, {"timestamp": 1787857200000, "value": 68.72}, {"timestamp": 1787860800000, "value": 45.13}, {"timestamp": 1787864400000, "value": 27.18}, {"timestamp": 1787868000000, "value": 18.37}, {"timestamp": 1787871600000, "value": 11.63}, {"timestamp": 1787875200000, "value": 7.59}, {"timestamp": 1787878800000, "value": 4.51}, {"timestamp": 1787882400000, "value": 0.59}, {"timestamp": 1787886000000, "value": -0.91}, {"timestamp": 1787889600000, "value": -2.2}, {"timestamp": 1787893200000, "value": -1.48}, {"timestamp": 1787896800000, "value": -0.98}, {"timestamp": 1787900400000, "value": -1.75}, {"timestamp": 1787904000000, "value": -2.4}, {"timestamp": 1787907600000, "value": -0.25}, {"timestamp": 1787911200000, "value": -2.02}, {"timestamp": 1787914800000, "value": -2.55}, {"timestamp": 1787918400000, "value": -1.99}, {"timestamp": 1787922000000, "value": 2.47}, {"timestamp": 1787925600000, "value": 5.94}, {"timestamp": 1787929200000, "value": 3.65}, {"timestamp": 1787932800000, "value": 1.1}, {"timestamp": 1787936400000, "value": 0.38}, {"timestamp": 1787940000000, "value": 4.5}, {"timestamp": 1787943600000, "value": 7.51}, {"timestamp": 1787947200000, "value": 5.51}, {"timestamp": 1787950800000, "value": 5.38}, {"timestamp": 1787954400000, "value": 3.61}, {"timestamp": 1787958000000, "value": 3.25}, {"timestamp": 1787961600000, "value": 2.11}, {"timestamp": 1787965200000, "value": 3.18}, {"timestamp": 1787968800000, "value": 5.03}, {"timestamp": 1787972400000, "value": 4.55}, {"timestamp": 1787976000000, "value": 5.46}, {"timestamp": 1787979600000, "value": 3.14}, {"timestamp": 1787983200000, "value": 4.09}, {"timestamp": 1787986800000, "value": 2.74}, {"timestamp": 1787990400000, "value": 3.18}, {"timestamp": 1787994000000, "value": 2.13}, {"timestamp": 1787997600000, "value": 2.65}, {"timestamp": 1788001200000, "value": 3.12}, {"timestamp": 1788004800000, "value": 2.71}, {"timestamp": 1788008400000, "value": 3.2}, {"timestamp": 1788012000000, "value": 2.15}, {"timestamp": 1788015600000, "value": 1.35}, {"timestamp": 1788019200000, "value": 0.83}, {"timestamp": 1788022800000, "value": -0.05}, {"timestamp": 1788026400000, "value": -1.19}, {"timestamp": 1788030000000, "value": 0.56}, {"timestamp": 1788033600000, "value": 1.54}, {"timestamp": 1788037200000, "value": 2.73}, {"timestamp": 1788040800000, "value": 1.83}, {"timestamp": 1788044400000, "value": 1.75}, {"timestamp": 1788048000000, "value": 1.18}, {"timestamp": 1788051600000, "value": 0.79}, {"timestamp": 1788055200000, "value": 0.53}, {"timestamp": 1788058800000, "value": -3.03}, {"timestamp": 1788062400000, "value": -1.69}, {"timestamp": 1788066000000, "value": -0.84}, {"timestamp": 1788069600000, "value": -0.56}, {"timestamp": 1788073200000, "value": -0.24}, {"timestamp": 1788076800000, "value": -0.16}, {"timestamp": 1788080400000, "value": -0.04}, {"timestamp": 1788084000000, "value": -0.69}, {"timestamp": 1788087600000, "value": -0.47}, {"timestamp": 1788091200000, "value": -0.47}, {"timestamp": 1788094800000, "value": -0.32}, {"timestamp": 1788098400000, "value": -0.27}, {"timestamp": 1788102000000, "value": -0.12}, {"timestamp": 1788105600000, "value": -0.08}, {"timestamp": 1788109200000, "value": -0.26}, {"timestamp": 1788112800000, "value": -0.45}, {"timestamp": 1788116400000, "value": -0.97}, {"timestamp": 1788120000000, "value": -0.65}, {"timestamp": 1788123600000, "value": 1.43}, {"timestamp": 1788127200000, "value": 1.78}, {"timestamp": 1788130800000, "value": 1.16}, {"timestamp": 1788134400000, "value": 5.82}, {"timestamp": 1788138000000, "value": 3.82}, {"timestamp": 1788141600000, "value": 2.56}, {"timestamp": 1788145200000, "value": 1.71}, {"timestamp": 1788148800000, "value": 1.09}, {"timestamp": 1788152400000, "value": 0.67}, {"timestamp": 1788156000000, "value": 0.46}, {"timestamp": 1788159600000, "value": 0.31}, {"timestamp": 1788163200000, "value": -0.24}, {"timestamp": 1788166800000, "value": -0.49}, {"timestamp": 1788170400000, "value": -0.55}, {"timestamp": 1788174000000, "value": -0.37}, {"timestamp": 1788177600000, "value": -0.22}, {"timestamp": 1788181200000, "value": -0.34}, {"timestamp": 1788184800000, "value": 4.33}, {"timestamp": 1788188400000, "value": 1.65}, {"timestamp": 1788192000000, "value": 0.93}, {"timestamp": 1788195600000, "value": -0.42}, {"timestamp": 1788199200000, "value": -0.77}, {"timestamp": 1788202800000, "value": -0.89}, {"timestamp": 1788206400000, "value": -9.84}, {"timestamp": 1788210000000, "value": -17.07}, {"timestamp": 1788213600000, "value": -14.99}, {"timestamp": 1788217200000, "value": -21.5}, {"timestamp": 1788220800000, "value": -35.76}, {"timestamp": 1788224400000, "value": -39.5}, {"timestamp": 1788228000000, "value": -38.19}, {"timestamp": 1788231600000, "value": -36.17}, {"timestamp": 1788235200000, "value": -30.13}, {"timestamp": 1788238800000, "value": -26.28}, {"timestamp": 1788242400000, "value": -17.48}, {"timestamp": 1788246000000, "value": -11.65}, {"timestamp": 1788249600000, "value": -24.73}, {"timestamp": 1788253200000, "value": -18.97}, {"timestamp": 1788256800000, "value": -11.67}, {"timestamp": 1788260400000, "value": -7.81}, {"timestamp": 1788264000000, "value": -4.22}, {"timestamp": 1788267600000, "value": -100.0}, {"timestamp": 1788271200000, "value": -100.0}, {"timestamp": 1788274800000, "value": -100.0}, {"timestamp": 1788278400000, "value": -76.76}, {"timestamp": 1788282000000, "value": -39.84}, {"timestamp": 1788285600000, "value": -100.0}, {"timestamp": 1788289200000, "value": -100.0}, {"timestamp": 1788292800000, "value": -90.66}, {"timestamp": 1788296400000, "value": -59.71}, {"timestamp": 1788300000000, "value": -29.88}, {"timestamp": 1788303600000, "value": -25.22}, {"timestamp": 1788307200000, "value": -13.44}, {"timestamp": 1788310800000, "value": -7.02}, {"timestamp": 1788314400000, "value": -0.74}, {"timestamp": 1788318000000, "value": 4.35}, {"timestamp": 1788321600000, "value": 26.48}, {"timestamp": 1788325200000, "value": 25.03}, {"timestamp": 1788328800000, "value": 16.66}, {"timestamp": 1788332400000, "value": 13.53}, {"timestamp": 1788336000000, "value": 18.27}, {"timestamp": 1788339600000, "value": 11.7}, {"timestamp": 1788343200000, "value": -10.18}, {"timestamp": 1788346800000, "value": 6.98}, {"timestamp": 1788350400000, "value": 8.08}, {"timestamp": 1788354000000, "value": -76.12}, {"timestamp": 1788357600000, "value": -55.41}, {"timestamp": 1788361200000, "value": -36.9}, {"timestamp": 1788364800000, "value": -24.63}, {"timestamp": 1788368400000, "value": -16.22}, {"timestamp": 1788372000000, "value": -10.69}, {"timestamp": 1788375600000, "value": -7.13}, {"timestamp": 1788379200000, "value": -4.81}, {"timestamp": 1788382800000, "value": -0.22}, {"timestamp": 1788386400000, "value": 2.6}, {"timestamp": 1788390000000, "value": 3.53}, {"timestamp": 1788393600000, "value": 2.29}, {"timestamp": 1788397200000, "value": -1.91}, {"timestamp": 1788400800000, "value": 0.3}, {"timestamp": 1788404400000, "value": 2.86}, {"timestamp": 1788408000000, "value": 3.52}, {"timestamp": 1788411600000, "value": 2.34}, {"timestamp": 1788415200000, "value": 2.2}, {"timestamp": 1788418800000, "value": 2.1}, {"timestamp": 1788422400000, "value": 1.8}, {"timestamp": 1788426000000, "value": 1.08}, {"timestamp": 1788429600000, "value": 0.72}, {"timestamp": 1788433200000, "value": 0.42}, {"timestamp": 1788436800000, "value": 0.91}, {"timestamp": 1788440400000, "value": 100.0}, {"timestamp": 1788444000000, "value": 100.0}, {"timestamp": 1788447600000, "value": 82.35}, {"timestamp": 1788451200000, "value": 63.34}, {"timestamp": 1788454800000, "value": 39.25}, {"timestamp": 1788458400000, "value": 12.09}, {"timestamp": 1788462000000, "value": 7.15}, {"timestamp": 1788465600000, "value": 1.91}, {"timestamp": 1788469200000, "value": -3.34}, {"timestamp": 1788472800000, "value": -2.91}, {"timestamp": 1788476400000, "value": -1.94}, {"timestamp": 1788480000000, "value": -4.91}, {"timestamp": 1788483600000, "value": -4.08}, {"timestamp": 1788487200000, "value": -2.72}, {"timestamp": 1788490800000, "value": -3.18}, {"timestamp": 1788494400000, "value": -6.16}, {"timestamp": 1788498000000, "value": -6.06}, {"timestamp": 1788501600000, "value": -6.79}, {"timestamp": 1788505200000, "value": -7.57}, {"timestamp": 1788508800000, "value": -9.68}, {"timestamp": 1788512400000, "value": -6.46}, {"timestamp": 1788516000000, "value": -4.3}, {"timestamp": 1788519600000, "value": -4.12}, {"timestamp": 1788523200000, "value": 33.83}, {"timestamp": 1788526800000, "value": 22.6}, {"timestamp": 1788530400000, "value": -33.94}, {"timestamp": 1788534000000, "value": -20.26}, {"timestamp": 1788537600000, "value": -12.33}, {"timestamp": 1788541200000, "value": -27.5}, {"timestamp": 1788544800000, "value": -16.08}]</script>
+<script>
+const candles = JSON.parse(document.getElementById('candles-data').textContent);
+const supportLevels = JSON.parse(document.getElementById('support-data').textContent);
+const signalBars = JSON.parse(document.getElementById('signals-data').textContent);
+const whaleData = JSON.parse(document.getElementById('whale-data').textContent);
+
+const chartOpts = {
+  layout: { background: { color: '#fbfaf7' }, textColor: '#14130f', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 },
+  grid: { vertLines: { color: '#eeebe3' }, horzLines: { color: '#eeebe3' } },
+  rightPriceScale: { borderColor: '#d9d5cc' },
+  timeScale: { borderColor: '#d9d5cc', timeVisible: true, secondsVisible: false },
+};
+
+function el(id) { return document.getElementById(id); }
+
+const priceChart = LightweightCharts.createChart(el('chart-container'), { ...chartOpts, width: el('chart-container').clientWidth, height: 440 });
+const candleSeries = priceChart.addCandlestickSeries({
+  upColor: '#2c7a4b', downColor: '#bf2f38', borderVisible: false,
+  wickUpColor: '#2c7a4b', wickDownColor: '#bf2f38',
+});
+const candleData = candles.map(c => ({ time: Math.floor(c.timestamp / 1000), open: c.open, high: c.high, low: c.low, close: c.close }));
+candleSeries.setData(candleData);
+
+supportLevels.forEach(function (lvl) {
+  candleSeries.createPriceLine({
+    price: lvl.price, color: '#8f8c80', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+    axisLabelVisible: true, title: 'support x' + lvl.touches,
+  });
+  // entry zone band: support +/- 0.5%
+  candleSeries.createPriceLine({
+    price: lvl.price * 1.005, color: 'rgba(44,122,75,0.35)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+    axisLabelVisible: false, title: 'zone+',
+  });
+  candleSeries.createPriceLine({
+    price: lvl.price * 0.995, color: 'rgba(44,122,75,0.35)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+    axisLabelVisible: false, title: 'zone-',
+  });
+});
+
+if (signalBars.length) {
+  candleSeries.setMarkers(signalBars.map(s => ({
+    time: Math.floor(s.timestamp / 1000), position: 'belowBar', color: '#2c7a4b', shape: 'arrowUp', text: 'ENTRY',
+  })));
+}
+
+const volChart = LightweightCharts.createChart(el('volume-container'), { ...chartOpts, width: el('volume-container').clientWidth, height: 110, timeScale: { ...chartOpts.timeScale, visible: false } });
+const volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
+volSeries.setData(candles.map(c => ({
+  time: Math.floor(c.timestamp / 1000), value: c.volume,
+  color: c.close >= c.open ? 'rgba(44,122,75,0.5)' : 'rgba(191,47,56,0.5)',
+})));
+
+const rsiChart = LightweightCharts.createChart(el('rsi-container'), { ...chartOpts, width: el('rsi-container').clientWidth, height: 120, timeScale: { ...chartOpts.timeScale, visible: false } });
+const rsiSeries = rsiChart.addLineSeries({ color: '#14130f', lineWidth: 2 });
+rsiSeries.setData(candles.filter(c => c.rsi !== null).map(c => ({ time: Math.floor(c.timestamp / 1000), value: c.rsi })));
+rsiSeries.createPriceLine({ price: 30, color: '#bf2f38', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, title: '30' });
+rsiSeries.createPriceLine({ price: 70, color: '#8f8c80', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, title: '70' });
+
+const whaleChart = LightweightCharts.createChart(el('whale-container'), { ...chartOpts, width: el('whale-container').clientWidth, height: 120 });
+const whaleSeries = whaleChart.addHistogramSeries({});
+whaleSeries.setData(whaleData.map(w => ({
+  time: Math.floor(w.timestamp / 1000), value: w.value,
+  color: w.value >= 0 ? 'rgba(44,122,75,0.6)' : 'rgba(191,47,56,0.6)',
+})));
+
+const allCharts = [priceChart, volChart, rsiChart, whaleChart];
+allCharts.forEach(function (c) {
+  const others = allCharts.filter(function (x) { return x !== c; });
+  c.timeScale().subscribeVisibleLogicalRangeChange(function (range) {
+    if (!range) return;
+    others.forEach(function (o) { o.timeScale().setVisibleLogicalRange(range); });
+  });
+});
+
+window.addEventListener('resize', function () {
+  priceChart.applyOptions({ width: el('chart-container').clientWidth });
+  volChart.applyOptions({ width: el('volume-container').clientWidth });
+  rsiChart.applyOptions({ width: el('rsi-container').clientWidth });
+  whaleChart.applyOptions({ width: el('whale-container').clientWidth });
+});
+
+priceChart.timeScale().fitContent();
+</script>
+</body>
+</html>
