@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>哈基米/USDT:USDT · futures-scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg: #f3f1eb;
+  --bg-dot: #dedbd0;
+  --card: #fbfaf7;
+  --card-alt: #f7f5ef;
+  --ink: #14130f;
+  --ink-soft: #6b6860;
+  --ink-faint: #9a978c;
+  --line: #d9d5cc;
+  --line-soft: #e8e5dc;
+  --green: #2c7a4b;
+  --green-soft: rgba(44, 122, 75, 0.16);
+  --red: #bf2f38;
+  --red-soft: rgba(191, 47, 56, 0.16);
+  --gray: #8f8c80;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { border-bottom-color: var(--ink); }
+.wrap { max-width: 1680px; margin: 0 auto; padding: 14px 18px 46px; }
+
+/* ---------- primitives ---------- */
+.pixel { font-family: 'Silkscreen', 'IBM Plex Mono', monospace; letter-spacing: 0.01em; }
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.label-ink { color: var(--ink-soft); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+  position: relative;
+}
+.card.flush { padding: 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.chip b { font-weight: 600; color: var(--ink); letter-spacing: 0.06em; }
+.chip.live { color: var(--green); border-color: rgba(44,122,75,0.45); background: var(--green-soft); }
+.chip.accent { border-color: var(--red); color: var(--red); }
+.chip.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--gray); }
+.muted { color: var(--ink-faint); }
+
+/* ---------- header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  padding: 8px 12px; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.header .brand { display: flex; align-items: center; gap: 10px; }
+.header .logo {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--card-alt);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.header .title { font-size: 14px; letter-spacing: 0.06em; }
+.header .title .accent { color: var(--red); }
+.header .meta-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- section frame ---------- */
+.section {
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  margin-top: 10px; overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+.section-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 7px;
+}
+.section-head h2 .bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.section-head h2 .sub { color: var(--ink-faint); font-weight: 400; }
+.section-head .hint {
+  color: var(--ink-faint); font-size: 9px; letter-spacing: 0.1em; text-transform: lowercase;
+}
+.section-body { display: grid; grid-template-columns: 196px 1fr; }
+.section-body.rev { grid-template-columns: 1fr 196px; }
+.section-body > .pane { padding: 10px 12px; min-width: 0; }
+.section-body > .stat-col { border-right: 1px solid var(--line-soft); }
+.section-body.rev > .stat-col { border-right: none; border-left: 1px solid var(--line-soft); }
+
+/* ---------- dotted-leader stat column ---------- */
+.stat-col { padding: 10px 12px; display: flex; flex-direction: column; }
+.stat-col .col-title {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 7px;
+}
+.srow {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 10.5px; line-height: 1.85; color: var(--ink-soft);
+}
+.srow .k { text-transform: lowercase; letter-spacing: 0.03em; white-space: nowrap; }
+.srow .lead {
+  flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); min-width: 8px;
+}
+.srow .v { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.srow.rule { border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 5px; }
+.stat-note {
+  margin-top: auto; padding-top: 12px; font-size: 9px; line-height: 1.6;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+.hero-left { display: grid; grid-template-columns: 196px 1fr; }
+.hero-main { padding: 10px 14px; min-width: 0; }
+.hero-num { font-size: 58px; line-height: 1.05; letter-spacing: -0.01em; }
+.hero-unit { font-size: 20px; color: var(--ink-faint); }
+.chiprow { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.tile {
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 6px 8px;
+  background: var(--card-alt);
+}
+.tile.sel { border-color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tile .sym { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.tile .val { font-size: 13px; margin-top: 1px; }
+.tile .meta { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.05em; }
+.hero-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; font-size: 9px; color: var(--ink-faint); letter-spacing: 0.08em;
+}
+
+/* ---------- top wins ---------- */
+.wins { display: flex; flex-direction: column; height: 100%; }
+.wins-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.wins-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 10px; }
+.win-mult { font-size: 40px; line-height: 1; }
+.win-plus { font-size: 14px; color: var(--ink-faint); vertical-align: super; }
+.win-flow { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+.win-flow .arrow { color: var(--ink-faint); }
+.pager { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.pager i { width: 14px; height: 3px; background: var(--line); border-radius: 2px; cursor: pointer; }
+.pager i.on { background: var(--ink); }
+
+/* ---------- viz ---------- */
+svg { display: block; width: 100%; height: auto; }
+.axis-txt { font-size: 8px; fill: var(--ink-faint); letter-spacing: 0.08em; }
+.boxlabel { font-size: 8px; letter-spacing: 0.1em; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 11px; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px;
+  color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--line);
+}
+tbody tr:hover td { background: var(--card-alt); }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- footer ---------- */
+.statusbar {
+  margin-top: 10px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--card);
+  font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.statusbar b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---------- controls ---------- */
+button.ctrl {
+  font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; color: var(--ink-soft);
+}
+button.ctrl:hover { background: var(--card-alt); color: var(--ink); }
+button.ctrl.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* ---------- progress ---------- */
+.bar-track { height: 6px; background: var(--line-soft); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.bar-fill { height: 100%; background: var(--ink); }
+
+@media (max-width: 1400px) {
+  .hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .section-body, .section-body.rev, .hero-left { grid-template-columns: 1fr; }
+  .section-body > .stat-col, .section-body.rev > .stat-col { border: none; border-bottom: 1px solid var(--line-soft); }
+  .wins-body { grid-template-columns: 1fr; }
+  .hero-num { font-size: 44px; }
+}
+#chart-container { width: 100%; height: 440px; }
+#volume-container { width: 100%; height: 110px; margin-top: 4px; }
+#rsi-container { width: 100%; height: 120px; margin-top: 4px; }
+#whale-container { width: 100%; height: 120px; margin-top: 4px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; font-size: 10px; color: var(--ink-soft); }
+.legend b { color: var(--ink); }
+.back-link { font-size: 10px; color: var(--ink-soft); }
+.back-link:hover { color: var(--ink); }
+.support-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.support-list .lvl { border: 1px dashed var(--line); border-radius: 2px; padding: 3px 8px; font-size: 10px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="label">FUTURES-SCAN · CHART · BINANCEUSDM · 1h</div>
+        <div class="title pixel">哈基米 <span class="accent">/USDT:USDT</span></div>
+      </div>
+    </div>
+    <div class="meta-right">
+      <a class="back-link" href="../index.html">&larr; back to scan</a>
+      <span class="chip">RSI 29.0</span>
+      <span class="chip">VOL× 3.90</span>
+      <span class="chip neg">
+        24H -28.36%
+      </span>
+      <span class="chip">100 bars</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>哈基米/USDT:USDT <span class="sub">· price structure</span></h2>
+      <span class="hint">candles · volume · rsi(14) · whale-momentum · clustered support</span>
+    </div>
+    <div class="section-body">
+    <div class="stat-col">
+      <div class="col-title">symbol ledger</div>
+      
+      <div class="srow"><span class="k">bars</span><span class="lead"></span><span class="v ">100</span></div>
+      
+      <div class="srow"><span class="k">last close</span><span class="lead"></span><span class="v ">0.02994</span></div>
+      
+      <div class="srow"><span class="k">window high</span><span class="lead"></span><span class="v ">0.0904</span></div>
+      
+      <div class="srow"><span class="k">window low</span><span class="lead"></span><span class="v ">0.02935</span></div>
+      
+      <div class="srow"><span class="k">window range</span><span class="lead"></span><span class="v ">208.0%</span></div>
+      
+      <div class="srow"><span class="k">window return</span><span class="lead"></span><span class="v neg">-63.60%</span></div>
+      
+      <div class="srow"><span class="k">rsi(14)</span><span class="lead"></span><span class="v ">29.0</span></div>
+      
+      <div class="srow"><span class="k">vol x avg</span><span class="lead"></span><span class="v ">1.39</span></div>
+      
+      <div class="srow"><span class="k">avg volume</span><span class="lead"></span><span class="v ">10,677,215</span></div>
+      
+      <div class="srow"><span class="k">whale mom</span><span class="lead"></span><span class="v neg">-60.1</span></div>
+      
+      <div class="srow"><span class="k">entry bars</span><span class="lead"></span><span class="v ">5</span></div>
+      
+      <div class="srow"><span class="k">support lv</span><span class="lead"></span><span class="v ">0</span></div>
+      
+      <div class="stat-note">the gate fires where an oversold rsi meets a volume spike near clustered support</div>
+    </div>
+    <div class="pane">
+    <div class="legend">
+      <span>candles + volume · 1h</span>
+      <span>support: <b>0</b> clustered levels (pivot-low, &plusmn;0.5% tol, &ge;2 touches)</span>
+      <span>entry zone: <b>5</b> bars (RSI&lt;30 + vol&ge;3x &rarr; support &plusmn;0.5% band)</span>
+    </div>
+    <div id="chart-container"></div>
+    <div id="volume-container"></div>
+    <div class="label" style="margin-top:8px;">RSI(14)</div>
+    <div id="rsi-container"></div>
+    <div class="label" style="margin-top:8px;">WHALE-MOMENTUM (custom oscillator, -100..100)</div>
+    <div id="whale-container"></div>
+    <div class="support-list">
+      
+      <div class="lvl neu">no clustered support found in this window</div>
+      
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · SYMBOL 哈基米/USDT:USDT</span>
+    <span>100 BARS · TF 1H · EXCHANGE BINANCEUSDM</span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b> · LIGHTWEIGHT-CHARTS V4</span>
+  </div>
+</div>
+
+<script type="application/json" id="candles-data">[{"close": 0.08226, "high": 0.0904, "low": 0.06968, "open": 0.06968, "rsi": null, "timestamp": 1788678000000, "volume": 181094880.0}, {"close": 0.0773, "high": 0.0843, "low": 0.07355, "open": 0.08226, "rsi": null, "timestamp": 1788681600000, "volume": 150479802.0}, {"close": 0.07956, "high": 0.08417, "low": 0.072, "open": 0.07738, "rsi": null, "timestamp": 1788685200000, "volume": 103834865.0}, {"close": 0.07356, "high": 0.0815, "low": 0.07246, "open": 0.07964, "rsi": null, "timestamp": 1788688800000, "volume": 50015340.0}, {"close": 0.0697, "high": 0.07551, "low": 0.06503, "open": 0.07356, "rsi": null, "timestamp": 1788692400000, "volume": 93710688.0}, {"close": 0.06187, "high": 0.07098, "low": 0.06115, "open": 0.06964, "rsi": null, "timestamp": 1788696000000, "volume": 74373564.0}, {"close": 0.06346, "high": 0.06785, "low": 0.06052, "open": 0.06203, "rsi": null, "timestamp": 1788699600000, "volume": 69234454.0}, {"close": 0.06083, "high": 0.06644, "low": 0.05809, "open": 0.06343, "rsi": null, "timestamp": 1788703200000, "volume": 70210714.0}, {"close": 0.06206, "high": 0.06411, "low": 0.05956, "open": 0.06088, "rsi": null, "timestamp": 1788706800000, "volume": 35585942.0}, {"close": 0.06267, "high": 0.06285, "low": 0.06208, "open": 0.06209, "rsi": null, "timestamp": 1788710400000, "volume": 1174941.0}, {"close": 0.05867, "high": 0.0605, "low": 0.05848, "open": 0.06041, "rsi": null, "timestamp": 1788714000000, "volume": 3896987.0}, {"close": 0.05905, "high": 0.05981, "low": 0.05865, "open": 0.05939, "rsi": null, "timestamp": 1788717600000, "volume": 2219083.0}, {"close": 0.0602, "high": 0.06058, "low": 0.06011, "open": 0.06046, "rsi": null, "timestamp": 1788721200000, "volume": 870779.0}, {"close": 0.0576, "high": 0.05804, "low": 0.05724, "open": 0.05747, "rsi": null, "timestamp": 1788724800000, "volume": 1538757.0}, {"close": 0.05637, "high": 0.05668, "low": 0.05628, "open": 0.05655, "rsi": 9.08, "timestamp": 1788728400000, "volume": 756221.0}, {"close": 0.05608, "high": 0.05608, "low": 0.05481, "open": 0.05482, "rsi": 9.02, "timestamp": 1788732000000, "volume": 3425082.0}, {"close": 0.05734, "high": 0.05742, "low": 0.05674, "open": 0.05697, "rsi": 11.72, "timestamp": 1788735600000, "volume": 1174391.0}, {"close": 0.05998, "high": 0.06125, "low": 0.05994, "open": 0.06123, "rsi": 17.25, "timestamp": 1788739200000, "volume": 2232705.0}, {"close": 0.06699, "high": 0.07, "low": 0.0662, "open": 0.06667, "rsi": 29.84, "timestamp": 1788742800000, "volume": 23519502.0}, {"close": 0.06257, "high": 0.0638, "low": 0.06236, "open": 0.06367, "rsi": 27.04, "timestamp": 1788746400000, "volume": 3030297.0}, {"close": 0.06402, "high": 0.06502, "low": 0.06322, "open": 0.06421, "rsi": 29.38, "timestamp": 1788750000000, "volume": 3078073.0}, {"close": 0.05999, "high": 0.06008, "low": 0.05923, "open": 0.0599, "rsi": 26.81, "timestamp": 1788753600000, "volume": 2438529.0}, {"close": 0.0608, "high": 0.06111, "low": 0.05906, "open": 0.05909, "rsi": 28.17, "timestamp": 1788757200000, "volume": 2531824.0}, {"close": 0.06097, "high": 0.06108, "low": 0.05987, "open": 0.06002, "rsi": 28.47, "timestamp": 1788760800000, "volume": 1064441.0}, {"close": 0.05857, "high": 0.05881, "low": 0.058, "open": 0.05849, "rsi": 26.77, "timestamp": 1788764400000, "volume": 1027249.0}, {"close": 0.05765, "high": 0.05818, "low": 0.05672, "open": 0.05696, "rsi": 26.12, "timestamp": 1788768000000, "volume": 1871784.0}, {"close": 0.05908, "high": 0.05944, "low": 0.05795, "open": 0.05805, "rsi": 28.99, "timestamp": 1788771600000, "volume": 2753182.0}, {"close": 0.06183, "high": 0.06369, "low": 0.06151, "open": 0.06327, "rsi": 34.26, "timestamp": 1788775200000, "volume": 3321852.0}, {"close": 0.06109, "high": 0.06226, "low": 0.06091, "open": 0.06215, "rsi": 33.54, "timestamp": 1788778800000, "volume": 1382887.0}, {"close": 0.05842, "high": 0.05852, "low": 0.05753, "open": 0.0577, "rsi": 31.0, "timestamp": 1788782400000, "volume": 1449829.0}, {"close": 0.05735, "high": 0.05785, "low": 0.0569, "open": 0.05781, "rsi": 30.02, "timestamp": 1788786000000, "volume": 1693978.0}, {"close": 0.05276, "high": 0.05538, "low": 0.0523, "open": 0.05526, "rsi": 26.19, "timestamp": 1788789600000, "volume": 7732295.0}, {"close": 0.04838, "high": 0.04991, "low": 0.04827, "open": 0.04978, "rsi": 23.16, "timestamp": 1788793200000, "volume": 10196941.0}, {"close": 0.04794, "high": 0.04844, "low": 0.0462, "open": 0.04628, "rsi": 22.87, "timestamp": 1788796800000, "volume": 8296218.0}, {"close": 0.04937, "high": 0.04959, "low": 0.04864, "open": 0.04873, "rsi": 26.07, "timestamp": 1788800400000, "volume": 1694427.0}, {"close": 0.0494, "high": 0.04989, "low": 0.04921, "open": 0.04962, "rsi": 26.14, "timestamp": 1788804000000, "volume": 1564718.0}, {"close": 0.04728, "high": 0.04763, "low": 0.04712, "open": 0.0473, "rsi": 24.4, "timestamp": 1788807600000, "volume": 614323.0}, {"close": 0.04832, "high": 0.04906, "low": 0.0483, "open": 0.04856, "rsi": 26.97, "timestamp": 1788811200000, "volume": 702482.0}, {"close": 0.04625, "high": 0.04659, "low": 0.04607, "open": 0.04644, "rsi": 25.14, "timestamp": 1788814800000, "volume": 1194885.0}, {"close": 0.04773, "high": 0.04773, "low": 0.04729, "open": 0.04757, "rsi": 28.86, "timestamp": 1788818400000, "volume": 592484.0}, {"close": 0.04867, "high": 0.04903, "low": 0.04798, "open": 0.04903, "rsi": 31.2, "timestamp": 1788822000000, "volume": 1932119.0}, {"close": 0.0494, "high": 0.05, "low": 0.04932, "open": 0.04979, "rsi": 33.04, "timestamp": 1788825600000, "volume": 2141058.0}, {"close": 0.04731, "high": 0.04843, "low": 0.04698, "open": 0.0484, "rsi": 30.52, "timestamp": 1788829200000, "volume": 5717026.0}, {"close": 0.04808, "high": 0.04849, "low": 0.04778, "open": 0.04839, "rsi": 32.56, "timestamp": 1788832800000, "volume": 765647.0}, {"close": 0.04552, "high": 0.04608, "low": 0.04525, "open": 0.04605, "rsi": 29.46, "timestamp": 1788836400000, "volume": 5813330.0}, {"close": 0.04785, "high": 0.04796, "low": 0.0477, "open": 0.04787, "rsi": 35.48, "timestamp": 1788840000000, "volume": 848103.0}, {"close": 0.04621, "high": 0.04642, "low": 0.04481, "open": 0.04481, "rsi": 33.32, "timestamp": 1788843600000, "volume": 3299337.0}, {"close": 0.04872, "high": 0.05042, "low": 0.04865, "open": 0.04964, "rsi": 39.39, "timestamp": 1788847200000, "volume": 6414283.0}, {"close": 0.04674, "high": 0.04713, "low": 0.04591, "open": 0.04664, "rsi": 36.56, "timestamp": 1788850800000, "volume": 2493391.0}, {"close": 0.04678, "high": 0.047, "low": 0.04637, "open": 0.04668, "rsi": 36.66, "timestamp": 1788854400000, "volume": 1335795.0}, {"close": 0.04609, "high": 0.04701, "low": 0.04601, "open": 0.04671, "rsi": 35.63, "timestamp": 1788858000000, "volume": 2106745.0}, {"close": 0.04248, "high": 0.04372, "low": 0.04213, "open": 0.04365, "rsi": 30.76, "timestamp": 1788861600000, "volume": 7969166.0}, {"close": 0.04287, "high": 0.04322, "low": 0.04278, "open": 0.04288, "rsi": 31.84, "timestamp": 1788865200000, "volume": 829150.0}, {"close": 0.04338, "high": 0.04348, "low": 0.04302, "open": 0.04318, "rsi": 33.31, "timestamp": 1788868800000, "volume": 969133.0}, {"close": 0.04169, "high": 0.04216, "low": 0.0415, "open": 0.04216, "rsi": 30.93, "timestamp": 1788872400000, "volume": 1711374.0}, {"close": 0.03925, "high": 0.04045, "low": 0.03869, "open": 0.04028, "rsi": 27.83, "timestamp": 1788876000000, "volume": 8662859.0}, {"close": 0.03989, "high": 0.04002, "low": 0.03866, "open": 0.03914, "rsi": 29.82, "timestamp": 1788879600000, "volume": 4218387.0}, {"close": 0.04282, "high": 0.04366, "low": 0.04264, "open": 0.04269, "rsi": 38.19, "timestamp": 1788883200000, "volume": 5504391.0}, {"close": 0.04354, "high": 0.04391, "low": 0.0433, "open": 0.04354, "rsi": 40.09, "timestamp": 1788886800000, "volume": 2329050.0}, {"close": 0.04421, "high": 0.04422, "low": 0.04339, "open": 0.04339, "rsi": 41.87, "timestamp": 1788890400000, "volume": 597838.0}, {"close": 0.04348, "high": 0.04405, "low": 0.04339, "open": 0.04395, "rsi": 40.46, "timestamp": 1788894000000, "volume": 1183048.0}, {"close": 0.0443, "high": 0.04475, "low": 0.04421, "open": 0.0447, "rsi": 42.79, "timestamp": 1788897600000, "volume": 1186720.0}, {"close": 0.04314, "high": 0.04315, "low": 0.04278, "open": 0.04298, "rsi": 40.38, "timestamp": 1788901200000, "volume": 494063.0}, {"close": 0.04241, "high": 0.04246, "low": 0.04214, "open": 0.04227, "rsi": 38.89, "timestamp": 1788904800000, "volume": 457444.0}, {"close": 0.04262, "high": 0.04274, "low": 0.04255, "open": 0.04267, "rsi": 39.58, "timestamp": 1788908400000, "volume": 351277.0}, {"close": 0.04273, "high": 0.04278, "low": 0.04227, "open": 0.0427, "rsi": 39.96, "timestamp": 1788912000000, "volume": 1011196.0}, {"close": 0.04404, "high": 0.04412, "low": 0.0433, "open": 0.04356, "rsi": 44.47, "timestamp": 1788915600000, "volume": 1860218.0}, {"close": 0.0437, "high": 0.04372, "low": 0.04298, "open": 0.04305, "rsi": 43.55, "timestamp": 1788919200000, "volume": 1062756.0}, {"close": 0.04068, "high": 0.04119, "low": 0.04059, "open": 0.04093, "rsi": 36.4, "timestamp": 1788922800000, "volume": 989117.0}, {"close": 0.0429, "high": 0.0429, "low": 0.04245, "open": 0.04251, "rsi": 43.72, "timestamp": 1788926400000, "volume": 967249.0}, {"close": 0.04427, "high": 0.04433, "low": 0.04341, "open": 0.04341, "rsi": 47.71, "timestamp": 1788930000000, "volume": 1786406.0}, {"close": 0.04344, "high": 0.04366, "low": 0.04301, "open": 0.04366, "rsi": 45.6, "timestamp": 1788933600000, "volume": 976878.0}, {"close": 0.04323, "high": 0.0433, "low": 0.04295, "open": 0.04299, "rsi": 45.06, "timestamp": 1788937200000, "volume": 664497.0}, {"close": 0.04289, "high": 0.04323, "low": 0.04281, "open": 0.04287, "rsi": 44.14, "timestamp": 1788940800000, "volume": 659865.0}, {"close": 0.04267, "high": 0.0428, "low": 0.04257, "open": 0.04258, "rsi": 43.52, "timestamp": 1788944400000, "volume": 219302.0}, {"close": 0.04179, "high": 0.04185, "low": 0.04108, "open": 0.04146, "rsi": 41.05, "timestamp": 1788948000000, "volume": 1888549.0}, {"close": 0.04085, "high": 0.04183, "low": 0.04064, "open": 0.04174, "rsi": 38.53, "timestamp": 1788951600000, "volume": 1426843.0}, {"close": 0.04352, "high": 0.0438, "low": 0.0423, "open": 0.04365, "rsi": 48.25, "timestamp": 1788955200000, "volume": 4467458.0}, {"close": 0.04187, "high": 0.04247, "low": 0.04182, "open": 0.04245, "rsi": 43.65, "timestamp": 1788958800000, "volume": 880595.0}, {"close": 0.04396, "high": 0.04398, "low": 0.04278, "open": 0.04278, "rsi": 50.13, "timestamp": 1788962400000, "volume": 3751552.0}, {"close": 0.03885, "high": 0.04018, "low": 0.0382, "open": 0.03962, "rsi": 38.48, "timestamp": 1788966000000, "volume": 9505671.0}, {"close": 0.03772, "high": 0.03817, "low": 0.03758, "open": 0.038, "rsi": 36.47, "timestamp": 1788969600000, "volume": 1718150.0}, {"close": 0.03703, "high": 0.03721, "low": 0.03667, "open": 0.03679, "rsi": 35.25, "timestamp": 1788973200000, "volume": 1188828.0}, {"close": 0.03746, "high": 0.03753, "low": 0.03668, "open": 0.03669, "rsi": 36.67, "timestamp": 1788976800000, "volume": 566343.0}, {"close": 0.03644, "high": 0.03674, "low": 0.03605, "open": 0.0367, "rsi": 34.73, "timestamp": 1788980400000, "volume": 2065034.0}, {"close": 0.03776, "high": 0.03788, "low": 0.03609, "open": 0.03615, "rsi": 39.21, "timestamp": 1788984000000, "volume": 1948096.0}, {"close": 0.03859, "high": 0.03861, "low": 0.03816, "open": 0.03818, "rsi": 41.91, "timestamp": 1788987600000, "volume": 642471.0}, {"close": 0.03457, "high": 0.03576, "low": 0.03445, "open": 0.03571, "rsi": 34.03, "timestamp": 1788991200000, "volume": 6354000.0}, {"close": 0.03408, "high": 0.0342, "low": 0.03377, "open": 0.03391, "rsi": 33.21, "timestamp": 1788994800000, "volume": 1009165.0}, {"close": 0.03441, "high": 0.03446, "low": 0.0338, "open": 0.03394, "rsi": 34.35, "timestamp": 1788998400000, "volume": 976670.0}, {"close": 0.03324, "high": 0.03338, "low": 0.03254, "open": 0.03311, "rsi": 32.24, "timestamp": 1789002000000, "volume": 1974106.0}, {"close": 0.03237, "high": 0.03292, "low": 0.03236, "open": 0.0329, "rsi": 30.72, "timestamp": 1789005600000, "volume": 844738.0}, {"close": 0.03361, "high": 0.03366, "low": 0.03331, "open": 0.03348, "rsi": 35.38, "timestamp": 1789009200000, "volume": 865796.0}, {"close": 0.03476, "high": 0.03477, "low": 0.0338, "open": 0.0338, "rsi": 39.45, "timestamp": 1789012800000, "volume": 1522290.0}, {"close": 0.03457, "high": 0.03557, "low": 0.03446, "open": 0.03537, "rsi": 39.01, "timestamp": 1789016400000, "volume": 3047372.0}, {"close": 0.03376, "high": 0.03425, "low": 0.03371, "open": 0.03421, "rsi": 37.13, "timestamp": 1789020000000, "volume": 1238322.0}, {"close": 0.03335, "high": 0.03365, "low": 0.03331, "open": 0.03357, "rsi": 36.17, "timestamp": 1789023600000, "volume": 571142.0}, {"close": 0.03275, "high": 0.03321, "low": 0.0327, "open": 0.03317, "rsi": 34.76, "timestamp": 1789027200000, "volume": 738973.0}, {"close": 0.03071, "high": 0.03141, "low": 0.0305, "open": 0.03116, "rsi": 30.43, "timestamp": 1789030800000, "volume": 8070928.0}, {"close": 0.02994, "high": 0.0303, "low": 0.02935, "open": 0.02936, "rsi": 28.96, "timestamp": 1789034400000, "volume": 3348784.0}]</script>
+<script type="application/json" id="support-data">[]</script>
+<script type="application/json" id="signals-data">[{"timestamp": 1788793200000}, {"timestamp": 1788796800000}, {"timestamp": 1788876000000}, {"timestamp": 1788879600000}, {"timestamp": 1789034400000}]</script>
+<script type="application/json" id="whale-data">[{"timestamp": 1788678000000, "value": 0.0}, {"timestamp": 1788681600000, "value": 0.0}, {"timestamp": 1788685200000, "value": 0.0}, {"timestamp": 1788688800000, "value": 0.0}, {"timestamp": 1788692400000, "value": 0.0}, {"timestamp": 1788696000000, "value": 0.0}, {"timestamp": 1788699600000, "value": 0.0}, {"timestamp": 1788703200000, "value": 0.0}, {"timestamp": 1788706800000, "value": 0.0}, {"timestamp": 1788710400000, "value": 0.0}, {"timestamp": 1788714000000, "value": 0.0}, {"timestamp": 1788717600000, "value": 0.0}, {"timestamp": 1788721200000, "value": 0.0}, {"timestamp": 1788724800000, "value": 0.0}, {"timestamp": 1788728400000, "value": 0.0}, {"timestamp": 1788732000000, "value": 0.0}, {"timestamp": 1788735600000, "value": 0.0}, {"timestamp": 1788739200000, "value": 0.0}, {"timestamp": 1788742800000, "value": 0.0}, {"timestamp": 1788746400000, "value": 0.0}, {"timestamp": 1788750000000, "value": 0.0}, {"timestamp": 1788753600000, "value": 0.0}, {"timestamp": 1788757200000, "value": 0.0}, {"timestamp": 1788760800000, "value": 0.0}, {"timestamp": 1788764400000, "value": 0.0}, {"timestamp": 1788768000000, "value": 0.0}, {"timestamp": 1788771600000, "value": 0.0}, {"timestamp": 1788775200000, "value": 0.0}, {"timestamp": 1788778800000, "value": 0.0}, {"timestamp": 1788782400000, "value": 0.0}, {"timestamp": 1788786000000, "value": 0.0}, {"timestamp": 1788789600000, "value": 0.0}, {"timestamp": 1788793200000, "value": 0.0}, {"timestamp": 1788796800000, "value": 0.0}, {"timestamp": 1788800400000, "value": 0.0}, {"timestamp": 1788804000000, "value": 0.0}, {"timestamp": 1788807600000, "value": 0.0}, {"timestamp": 1788811200000, "value": 0.0}, {"timestamp": 1788814800000, "value": 0.0}, {"timestamp": 1788818400000, "value": 0.0}, {"timestamp": 1788822000000, "value": 0.0}, {"timestamp": 1788825600000, "value": 0.0}, {"timestamp": 1788829200000, "value": 0.0}, {"timestamp": 1788832800000, "value": -20.84}, {"timestamp": 1788836400000, "value": -40.3}, {"timestamp": 1788840000000, "value": -26.73}, {"timestamp": 1788843600000, "value": -24.1}, {"timestamp": 1788847200000, "value": -54.5}, {"timestamp": 1788850800000, "value": -35.86}, {"timestamp": 1788854400000, "value": -21.75}, {"timestamp": 1788858000000, "value": -4.23}, {"timestamp": 1788861600000, "value": -90.34}, {"timestamp": 1788865200000, "value": -59.48}, {"timestamp": 1788868800000, "value": -32.91}, {"timestamp": 1788872400000, "value": -12.54}, {"timestamp": 1788876000000, "value": -100.0}, {"timestamp": 1788879600000, "value": -100.0}, {"timestamp": 1788883200000, "value": -73.03}, {"timestamp": 1788886800000, "value": -48.99}, {"timestamp": 1788890400000, "value": -2.3}, {"timestamp": 1788894000000, "value": 11.17}, {"timestamp": 1788897600000, "value": 16.35}, {"timestamp": 1788901200000, "value": 15.1}, {"timestamp": 1788904800000, "value": 13.89}, {"timestamp": 1788908400000, "value": 10.58}, {"timestamp": 1788912000000, "value": 7.64}, {"timestamp": 1788915600000, "value": 8.3}, {"timestamp": 1788919200000, "value": 12.66}, {"timestamp": 1788922800000, "value": 11.8}, {"timestamp": 1788926400000, "value": 12.26}, {"timestamp": 1788930000000, "value": 10.63}, {"timestamp": 1788933600000, "value": 8.52}, {"timestamp": 1788937200000, "value": 7.68}, {"timestamp": 1788940800000, "value": 5.32}, {"timestamp": 1788944400000, "value": 4.6}, {"timestamp": 1788948000000, "value": 0.96}, {"timestamp": 1788951600000, "value": -2.0}, {"timestamp": 1788955200000, "value": -8.3}, {"timestamp": 1788958800000, "value": -2.6}, {"timestamp": 1788962400000, "value": -29.98}, {"timestamp": 1788966000000, "value": -73.08}, {"timestamp": 1788969600000, "value": -48.57}, {"timestamp": 1788973200000, "value": -29.85}, {"timestamp": 1788976800000, "value": 0.81}, {"timestamp": 1788980400000, "value": -0.7}, {"timestamp": 1788984000000, "value": -1.21}, {"timestamp": 1788987600000, "value": 10.92}, {"timestamp": 1788991200000, "value": -100.0}, {"timestamp": 1788994800000, "value": -65.4}, {"timestamp": 1788998400000, "value": -27.54}, {"timestamp": 1789002000000, "value": -17.76}, {"timestamp": 1789005600000, "value": 13.82}, {"timestamp": 1789009200000, "value": 15.2}, {"timestamp": 1789012800000, "value": 30.91}, {"timestamp": 1789016400000, "value": 2.66}, {"timestamp": 1789020000000, "value": 17.02}, {"timestamp": 1789023600000, "value": 23.45}, {"timestamp": 1789027200000, "value": 34.94}, {"timestamp": 1789030800000, "value": -60.68}, {"timestamp": 1789034400000, "value": -60.1}]</script>
+<script>
+const candles = JSON.parse(document.getElementById('candles-data').textContent);
+const supportLevels = JSON.parse(document.getElementById('support-data').textContent);
+const signalBars = JSON.parse(document.getElementById('signals-data').textContent);
+const whaleData = JSON.parse(document.getElementById('whale-data').textContent);
+
+const chartOpts = {
+  layout: { background: { color: '#fbfaf7' }, textColor: '#14130f', fontFamily: "'IBM Plex Mono', monospace", fontSize: 10 },
+  grid: { vertLines: { color: '#eeebe3' }, horzLines: { color: '#eeebe3' } },
+  rightPriceScale: { borderColor: '#d9d5cc' },
+  timeScale: { borderColor: '#d9d5cc', timeVisible: true, secondsVisible: false },
+};
+
+function el(id) { return document.getElementById(id); }
+
+const priceChart = LightweightCharts.createChart(el('chart-container'), { ...chartOpts, width: el('chart-container').clientWidth, height: 440 });
+const candleSeries = priceChart.addCandlestickSeries({
+  upColor: '#2c7a4b', downColor: '#bf2f38', borderVisible: false,
+  wickUpColor: '#2c7a4b', wickDownColor: '#bf2f38',
+});
+const candleData = candles.map(c => ({ time: Math.floor(c.timestamp / 1000), open: c.open, high: c.high, low: c.low, close: c.close }));
+candleSeries.setData(candleData);
+
+supportLevels.forEach(function (lvl) {
+  candleSeries.createPriceLine({
+    price: lvl.price, color: '#8f8c80', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+    axisLabelVisible: true, title: 'support x' + lvl.touches,
+  });
+  // entry zone band: support +/- 0.5%
+  candleSeries.createPriceLine({
+    price: lvl.price * 1.005, color: 'rgba(44,122,75,0.35)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+    axisLabelVisible: false, title: 'zone+',
+  });
+  candleSeries.createPriceLine({
+    price: lvl.price * 0.995, color: 'rgba(44,122,75,0.35)', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+    axisLabelVisible: false, title: 'zone-',
+  });
+});
+
+if (signalBars.length) {
+  candleSeries.setMarkers(signalBars.map(s => ({
+    time: Math.floor(s.timestamp / 1000), position: 'belowBar', color: '#2c7a4b', shape: 'arrowUp', text: 'ENTRY',
+  })));
+}
+
+const volChart = LightweightCharts.createChart(el('volume-container'), { ...chartOpts, width: el('volume-container').clientWidth, height: 110, timeScale: { ...chartOpts.timeScale, visible: false } });
+const volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
+volSeries.setData(candles.map(c => ({
+  time: Math.floor(c.timestamp / 1000), value: c.volume,
+  color: c.close >= c.open ? 'rgba(44,122,75,0.5)' : 'rgba(191,47,56,0.5)',
+})));
+
+const rsiChart = LightweightCharts.createChart(el('rsi-container'), { ...chartOpts, width: el('rsi-container').clientWidth, height: 120, timeScale: { ...chartOpts.timeScale, visible: false } });
+const rsiSeries = rsiChart.addLineSeries({ color: '#14130f', lineWidth: 2 });
+rsiSeries.setData(candles.filter(c => c.rsi !== null).map(c => ({ time: Math.floor(c.timestamp / 1000), value: c.rsi })));
+rsiSeries.createPriceLine({ price: 30, color: '#bf2f38', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, title: '30' });
+rsiSeries.createPriceLine({ price: 70, color: '#8f8c80', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted, title: '70' });
+
+const whaleChart = LightweightCharts.createChart(el('whale-container'), { ...chartOpts, width: el('whale-container').clientWidth, height: 120 });
+const whaleSeries = whaleChart.addHistogramSeries({});
+whaleSeries.setData(whaleData.map(w => ({
+  time: Math.floor(w.timestamp / 1000), value: w.value,
+  color: w.value >= 0 ? 'rgba(44,122,75,0.6)' : 'rgba(191,47,56,0.6)',
+})));
+
+const allCharts = [priceChart, volChart, rsiChart, whaleChart];
+allCharts.forEach(function (c) {
+  const others = allCharts.filter(function (x) { return x !== c; });
+  c.timeScale().subscribeVisibleLogicalRangeChange(function (range) {
+    if (!range) return;
+    others.forEach(function (o) { o.timeScale().setVisibleLogicalRange(range); });
+  });
+});
+
+window.addEventListener('resize', function () {
+  priceChart.applyOptions({ width: el('chart-container').clientWidth });
+  volChart.applyOptions({ width: el('volume-container').clientWidth });
+  rsiChart.applyOptions({ width: el('rsi-container').clientWidth });
+  whaleChart.applyOptions({ width: el('whale-container').clientWidth });
+});
+
+priceChart.timeScale().fitContent();
+</script>
+</body>
+</html>
