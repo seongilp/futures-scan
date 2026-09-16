@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>futures-scan · BINANCEUSDM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --bg: #f3f1eb;
+  --bg-dot: #dedbd0;
+  --card: #fbfaf7;
+  --card-alt: #f7f5ef;
+  --ink: #14130f;
+  --ink-soft: #6b6860;
+  --ink-faint: #9a978c;
+  --line: #d9d5cc;
+  --line-soft: #e8e5dc;
+  --green: #2c7a4b;
+  --green-soft: rgba(44, 122, 75, 0.16);
+  --red: #bf2f38;
+  --red-soft: rgba(191, 47, 56, 0.16);
+  --gray: #8f8c80;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { border-bottom-color: var(--ink); }
+.wrap { max-width: 1680px; margin: 0 auto; padding: 14px 18px 46px; }
+
+/* ---------- primitives ---------- */
+.pixel { font-family: 'Silkscreen', 'IBM Plex Mono', monospace; letter-spacing: 0.01em; }
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.label-ink { color: var(--ink-soft); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+  position: relative;
+}
+.card.flush { padding: 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.chip b { font-weight: 600; color: var(--ink); letter-spacing: 0.06em; }
+.chip.live { color: var(--green); border-color: rgba(44,122,75,0.45); background: var(--green-soft); }
+.chip.accent { border-color: var(--red); color: var(--red); }
+.chip.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--gray); }
+.muted { color: var(--ink-faint); }
+
+/* ---------- header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  padding: 8px 12px; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.header .brand { display: flex; align-items: center; gap: 10px; }
+.header .logo {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--card-alt);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.header .title { font-size: 14px; letter-spacing: 0.06em; }
+.header .title .accent { color: var(--red); }
+.header .meta-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- section frame ---------- */
+.section {
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  margin-top: 10px; overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+.section-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 7px;
+}
+.section-head h2 .bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.section-head h2 .sub { color: var(--ink-faint); font-weight: 400; }
+.section-head .hint {
+  color: var(--ink-faint); font-size: 9px; letter-spacing: 0.1em; text-transform: lowercase;
+}
+.section-body { display: grid; grid-template-columns: 196px 1fr; }
+.section-body.rev { grid-template-columns: 1fr 196px; }
+.section-body > .pane { padding: 10px 12px; min-width: 0; }
+.section-body > .stat-col { border-right: 1px solid var(--line-soft); }
+.section-body.rev > .stat-col { border-right: none; border-left: 1px solid var(--line-soft); }
+
+/* ---------- dotted-leader stat column ---------- */
+.stat-col { padding: 10px 12px; display: flex; flex-direction: column; }
+.stat-col .col-title {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 7px;
+}
+.srow {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 10.5px; line-height: 1.85; color: var(--ink-soft);
+}
+.srow .k { text-transform: lowercase; letter-spacing: 0.03em; white-space: nowrap; }
+.srow .lead {
+  flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); min-width: 8px;
+}
+.srow .v { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.srow.rule { border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 5px; }
+.stat-note {
+  margin-top: auto; padding-top: 12px; font-size: 9px; line-height: 1.6;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+.hero-left { display: grid; grid-template-columns: 196px 1fr; }
+.hero-main { padding: 10px 14px; min-width: 0; }
+.hero-num { font-size: 58px; line-height: 1.05; letter-spacing: -0.01em; }
+.hero-unit { font-size: 20px; color: var(--ink-faint); }
+.chiprow { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.tile {
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 6px 8px;
+  background: var(--card-alt);
+}
+.tile.sel { border-color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tile .sym { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.tile .val { font-size: 13px; margin-top: 1px; }
+.tile .meta { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.05em; }
+.hero-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; font-size: 9px; color: var(--ink-faint); letter-spacing: 0.08em;
+}
+
+/* ---------- top wins ---------- */
+.wins { display: flex; flex-direction: column; height: 100%; }
+.wins-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.wins-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 10px; }
+.win-mult { font-size: 40px; line-height: 1; }
+.win-plus { font-size: 14px; color: var(--ink-faint); vertical-align: super; }
+.win-flow { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+.win-flow .arrow { color: var(--ink-faint); }
+.pager { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.pager i { width: 14px; height: 3px; background: var(--line); border-radius: 2px; cursor: pointer; }
+.pager i.on { background: var(--ink); }
+
+/* ---------- viz ---------- */
+svg { display: block; width: 100%; height: auto; }
+.axis-txt { font-size: 8px; fill: var(--ink-faint); letter-spacing: 0.08em; }
+.boxlabel { font-size: 8px; letter-spacing: 0.1em; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 11px; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px;
+  color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--line);
+}
+tbody tr:hover td { background: var(--card-alt); }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- footer ---------- */
+.statusbar {
+  margin-top: 10px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--card);
+  font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.statusbar b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---------- controls ---------- */
+button.ctrl {
+  font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; color: var(--ink-soft);
+}
+button.ctrl:hover { background: var(--card-alt); color: var(--ink); }
+button.ctrl.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* ---------- progress ---------- */
+.bar-track { height: 6px; background: var(--line-soft); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.bar-fill { height: 100%; background: var(--ink); }
+
+@media (max-width: 1400px) {
+  .hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .section-body, .section-body.rev, .hero-left { grid-template-columns: 1fr; }
+  .section-body > .stat-col, .section-body.rev > .stat-col { border: none; border-bottom: 1px solid var(--line-soft); }
+  .wins-body { grid-template-columns: 1fr; }
+  .hero-num { font-size: 44px; }
+}
+.graph-body { display: grid; grid-template-columns: 178px 1fr 186px; }
+.graph-body > .side { padding: 10px 12px; min-width: 0; }
+.graph-body > .side.l { border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; }
+.graph-body > .side.r { border-left: 1px solid var(--line-soft); }
+.legend-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-soft); line-height: 1.8; }
+.legend-row .sw { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.mini-hist { display: flex; align-items: flex-end; gap: 2px; height: 54px; margin-top: 6px; }
+.mini-hist .bar { flex: 1; background: var(--gray); border-radius: 1px 1px 0 0; min-height: 2px; }
+.mini-hist .bar.pos { background: var(--green); }
+.mini-hist .bar.neg { background: var(--red); }
+.bigstat { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+.bigstat .k { font-size: 9px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint); }
+.bigstat .v { font-size: 15px; }
+@media (max-width: 1100px) { .graph-body { grid-template-columns: 1fr; } .graph-body > .side.l, .graph-body > .side.r { border: none; border-bottom: 1px solid var(--line-soft); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  
+  <div class="header">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="label">FUTURES-SCAN · LIVE ON BINANCEUSDM · 1h</div>
+        <div class="title pixel">FUTURES-SCAN · <span class="accent">BINANCEUSDM</span></div>
+      </div>
+    </div>
+    <div class="meta-right">
+      <span class="chip live"><span class="dot"></span> LIVE · 1H</span>
+      <span class="chip">ROUND <b>#1</b></span>
+      <span class="chip" id="utc-clock">03:05:57 UTC</span>
+    </div>
+  </div>
+
+  
+  <div class="hero">
+    <div class="card flush">
+      <div class="hero-left">
+        <div class="stat-col">
+          <div class="col-title">session ledger</div>
+          
+          <div class="srow"><span class="k">symbols scanned</span><span class="lead"></span><span class="v ">718</span></div>
+          
+          <div class="srow"><span class="k">scan hits</span><span class="lead"></span><span class="v ">7</span></div>
+          
+          <div class="srow"><span class="k">scan time</span><span class="lead"></span><span class="v ">42.7s</span></div>
+          
+          <div class="srow"><span class="k">median rsi</span><span class="lead"></span><span class="v ">25.7</span></div>
+          
+          <div class="srow"><span class="k">median vol x</span><span class="lead"></span><span class="v ">5.25</span></div>
+          
+          <div class="srow"><span class="k">median 24h</span><span class="lead"></span><span class="v neg">-7.07%</span></div>
+          
+          <div class="srow"><span class="k">trades</span><span class="lead"></span><span class="v ">17</span></div>
+          
+          <div class="srow"><span class="k">win rate</span><span class="lead"></span><span class="v ">35.3%</span></div>
+          
+          <div class="srow"><span class="k">ev / trade</span><span class="lead"></span><span class="v neg">-2.59</span></div>
+          
+          <div class="srow"><span class="k">sharpe</span><span class="lead"></span><span class="v ">-0.09</span></div>
+          
+          <div class="srow"><span class="k">max drawdown</span><span class="lead"></span><span class="v neg">-86.56</span></div>
+          
+          <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-43.96</span></div>
+          
+          <div class="stat-note">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average — the gate is the whole edge</div>
+        </div>
+        <div class="hero-main">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span class="label">FUTURES-SCAN · REALISED PNL</span>
+            <span class="chip accent">RSI MEAN-REVERT</span>
+            <span class="chip">7 HITS</span>
+          </div>
+          <div class="hero-num pixel neg" style="margin-top:6px;">
+            -43.96<span class="hero-unit"> USDT</span>
+          </div>
+          <div class="chiprow">
+            <span class="chip">trades <b>17</b></span>
+            <span class="chip">win rate <b>35.3%</b></span>
+            <span class="chip">sharpe <b>-0.09</b></span>
+            <span class="chip">mdd <b>-86.56</b></span>
+            <span class="chip">edge <b class="pos">+2.0pp</b></span>
+          </div>
+          
+          <div class="tiles">
+            
+            <div class="tile sel">
+              <div class="sym">HAEDAL</div>
+              <div class="val pixel pos">+29.20</div>
+              <div class="meta">1 tr · 100.0% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">COOKIE</div>
+              <div class="val pixel pos">+23.98</div>
+              <div class="meta">2 tr · 50.0% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">AVAAI</div>
+              <div class="val pixel pos">+13.40</div>
+              <div class="meta">2 tr · 50.0% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">NEWT</div>
+              <div class="val pixel pos">+0.94</div>
+              <div class="meta">1 tr · 100.0% wr</div>
+            </div>
+            
+          </div>
+          
+          <div class="hero-foot">
+            <span>anon · binanceusdm · 1h · notional 1,000 usdt / trade</span>
+            <span class="chip live"><span class="dot"></span> LIVE · CACHED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card flush">
+      <div class="wins">
+        <div class="wins-head">
+          <span class="label">★ TOP WINS · AIN · BINANCEUSDM</span>
+          <span class="label" id="wins-pager">1 / 5</span>
+        </div>
+        
+        <div class="wins-body">
+          <div>
+            <div class="win-mult pixel pos"><span id="win-mult">&times;1.030</span><span class="win-plus" id="win-plus">+3.00%</span></div>
+            <div class="label" id="win-meta" style="margin-top:6px;">Aug 31 00:00 · AIN · TP · 5 BARS</div>
+            <div class="win-flow">
+              <div>
+                <div class="label">ENTRY</div>
+                <div class="pixel" id="win-entry">0.06689</div>
+              </div>
+              <div class="arrow">&rarr;</div>
+              <div>
+                <div class="label">EXIT</div>
+                <div class="pixel pos" id="win-exit">0.0688967</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;" class="pos" id="win-pnl">+29.20 USDT</div>
+          </div>
+          <div>
+            <div class="label" style="text-align:right;">CUMULATIVE PNL · 17 FILLS</div>
+            <svg id="pnl-curve" viewBox="0 0 320 132" preserveAspectRatio="none" style="height:132px;"></svg>
+            <div class="pager" id="pager-dots"></div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Probability Lattice <span class="sub">· 17 trades, one board</span></h2>
+      <span class="hint">every trade = one ball · 7 volatility gates · the scan gate tilts the board</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">live convergence</div>
+        
+        <div class="srow"><span class="k">balls dropped</span><span class="lead"></span><span class="v ">17</span></div>
+        
+        <div class="srow"><span class="k">landed green</span><span class="lead"></span><span class="v pos">6</span></div>
+        
+        <div class="srow"><span class="k">landed red</span><span class="lead"></span><span class="v neg">11</span></div>
+        
+        <div class="srow"><span class="k">green rate</span><span class="lead"></span><span class="v ">35.3%</span></div>
+        
+        <div class="srow"><span class="k">ev / trade</span><span class="lead"></span><span class="v neg">-2.59</span></div>
+        
+        <div class="srow"><span class="k">session pnl</span><span class="lead"></span><span class="v neg">-43.96</span></div>
+        
+        <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-43.96</span></div>
+        
+        <div class="srow"><span class="k">equity peak</span><span class="lead"></span><span class="v pos">+42.60</span></div>
+        
+        <div class="srow"><span class="k">max drawdown</span><span class="lead"></span><span class="v neg">-86.56</span></div>
+        
+        <div class="srow"><span class="k">best hit</span><span class="lead"></span><span class="v pos">+3.00%</span></div>
+        
+        <div class="srow"><span class="k">worst hit</span><span class="lead"></span><span class="v neg">-1.50%</span></div>
+        
+        <div class="srow"><span class="k">sharpe / trade</span><span class="lead"></span><span class="v ">-0.09</span></div>
+        
+        <div class="srow"><span class="k">breakeven wr</span><span class="lead"></span><span class="v ">33.3%</span></div>
+        
+        <div class="srow"><span class="k">edge vs gate</span><span class="lead"></span><span class="v pos">+2.0pp</span></div>
+        
+        <div class="stat-note">law of large numbers — a 35.3% gate only needs repetition, not conviction</div>
+      </div>
+      <div class="pane">
+        
+        <div style="position:relative;">
+          <canvas id="lattice" style="width:100%; display:block;"></canvas>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Tail Probability Ridge <span class="sub">· strike landscape</span></h2>
+      <span class="hint">every ridge = one symbol · strike = take-profit · only the tail pays</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">tail scanner</div>
+        
+        <div class="srow"><span class="k">symbols</span><span class="lead"></span><span class="v ">7</span></div>
+        
+        <div class="srow"><span class="k">sessions</span><span class="lead"></span><span class="v ">17</span></div>
+        
+        <div class="srow"><span class="k">strike</span><span class="lead"></span><span class="v ">+3%</span></div>
+        
+        <div class="srow"><span class="k">stop</span><span class="lead"></span><span class="v ">-1.5%</span></div>
+        
+        <div class="srow"><span class="k">tail mass</span><span class="lead"></span><span class="v ">23.53%</span></div>
+        
+        <div class="srow"><span class="k">implied mult</span><span class="lead"></span><span class="v ">x4.2</span></div>
+        
+        <div class="srow"><span class="k">stop mass</span><span class="lead"></span><span class="v neg">58.82%</span></div>
+        
+        <div class="srow"><span class="k">tp exits</span><span class="lead"></span><span class="v pos">4</span></div>
+        
+        <div class="srow"><span class="k">time exits</span><span class="lead"></span><span class="v ">3</span></div>
+        
+        <div class="srow"><span class="k">avg hold</span><span class="lead"></span><span class="v ">5.8 bars</span></div>
+        
+        <div class="srow"><span class="k">avg entry</span><span class="lead"></span><span class="v ">368.6</span></div>
+        
+        <div class="srow"><span class="k">best hit</span><span class="lead"></span><span class="v pos">+3.00%</span></div>
+        
+        <div class="srow"><span class="k">avg return</span><span class="lead"></span><span class="v neg">-0.179%</span></div>
+        
+        <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-43.96</span></div>
+        
+        <div class="stat-note">pennies into the body — the strike only breaks 23.5% of the time</div>
+      </div>
+      <div class="pane">
+        
+        <svg id="ridge" viewBox="0 0 1080 420"></svg>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Relationship Graph <span class="sub">· correlation simulation</span></h2>
+      <span class="hint" id="graph-counters">nodes 47 · edges 968 · signal 66.4% · iter 0</span>
+    </div>
+    <div class="graph-body">
+      <div class="side l">
+        <div class="col-title">node class</div>
+        <div class="legend-row"><span class="sw" style="background:#bf2f38"></span> bear signal</div>
+        <div class="legend-row"><span class="sw" style="background:#2c7a4b"></span> bull signal</div>
+        <div class="legend-row"><span class="sw" style="background:#14130f"></span> cluster hub</div>
+        <div class="legend-row"><span class="sw" style="background:#8f8c80"></span> catalyst</div>
+        <div class="legend-row"><span class="sw" style="background:transparent;border-bottom:2px dashed #14130f;border-radius:0;height:0"></span> median path</div>
+        <div style="margin-top:12px;">
+          
+          <div class="srow"><span class="k">bear paths</span><span class="lead"></span><span class="v neg">0</span></div>
+          
+          <div class="srow"><span class="k">bull paths</span><span class="lead"></span><span class="v pos">968</span></div>
+          
+          <div class="srow"><span class="k">paths sim</span><span class="lead"></span><span class="v ">968</span></div>
+          
+          <div class="srow"><span class="k">bear nodes</span><span class="lead"></span><span class="v neg">29</span></div>
+          
+          <div class="srow"><span class="k">bull nodes</span><span class="lead"></span><span class="v pos">18</span></div>
+          
+          <div class="srow"><span class="k">neighbours</span><span class="lead"></span><span class="v ">40</span></div>
+          
+          <div class="srow"><span class="k">mean |rho|</span><span class="lead"></span><span class="v ">66.4%</span></div>
+          
+          <div class="srow"><span class="k">iter / sec</span><span class="lead"></span><span class="v" id="iter-sec">—</span></div>
+          <div class="label" style="margin-top:8px;">convergence <span id="conv-pct">0%</span></div>
+          <div class="bar-track"><div class="bar-fill" id="conv-bar" style="width:0%"></div></div>
+          <div class="srow rule"><span class="k">predicted</span><span class="lead"></span><span class="v neg">▼ DOWN</span></div>
+          <div class="srow"><span class="k">median fair</span><span class="lead"></span><span class="v">0.018833</span></div>
+        </div>
+      </div>
+      <div class="side" style="padding:6px;">
+        
+        <svg id="graph" viewBox="0 0 960 470"></svg>
+        
+      </div>
+      <div class="side r">
+        <div class="bigstat"><span class="k">P(UP)</span><span class="v pixel pos">0.00</span></div>
+        <div class="bigstat"><span class="k">P(DOWN)</span><span class="v pixel neg">1.00</span></div>
+        <div class="bigstat"><span class="k">edge vs gate</span><span class="v pixel pos">+2.0</span></div>
+        <div class="bigstat"><span class="k">confidence</span><span class="v pixel">100.0%</span></div>
+        <div class="label" style="margin-top:12px;">24H CHANGE DISTRIBUTION</div>
+        
+        <div class="mini-hist" id="mini-hist"></div>
+        
+        <div class="stat-note" style="padding-top:10px;">p(up) = share of scan hits whose latest whale-momentum is positive</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Scan Hits <span class="sub">· 7 symbols</span></h2>
+      <span class="hint">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average</span>
+    </div>
+    <div class="scroll-x" style="padding: 4px 12px 10px;">
+      <table>
+        <thead><tr><th>symbol</th><th>rsi</th><th>vol&times;</th><th>close</th><th>24h%</th><th>trades</th><th>pnl %</th><th>replay</th></tr></thead>
+        <tbody>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AIN-USDT-USDT.html">AIN/USDT:USDT</a></td>
+            <td>21.2</td>
+            <td>15.92</td>
+            <td>0.03709</td>
+            <td class="neg">-74.00</td>
+            <td>3</td>
+            <td class="pos">+0.00%</td>
+            <td><a href="replay/AIN-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AVAAI-USDT-USDT.html">AVAAI/USDT:USDT</a></td>
+            <td>30.0</td>
+            <td>6.45</td>
+            <td>0.009035</td>
+            <td class="neg">-12.88</td>
+            <td>2</td>
+            <td class="pos">+1.50%</td>
+            <td><a href="replay/AVAAI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/COOKIE-USDT-USDT.html">COOKIE/USDT:USDT</a></td>
+            <td>24.5</td>
+            <td>3.30</td>
+            <td>0.009681</td>
+            <td class="neg">-6.30</td>
+            <td>2</td>
+            <td class="pos">+2.56%</td>
+            <td><a href="replay/COOKIE-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/HAEDAL-USDT-USDT.html">HAEDAL/USDT:USDT</a></td>
+            <td>27.4</td>
+            <td>5.25</td>
+            <td>0.01812</td>
+            <td class="neg">-5.97</td>
+            <td>1</td>
+            <td class="pos">+3.00%</td>
+            <td><a href="replay/HAEDAL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/NEWT-USDT-USDT.html">NEWT/USDT:USDT</a></td>
+            <td>25.7</td>
+            <td>4.98</td>
+            <td>0.04025</td>
+            <td class="neg">-9.39</td>
+            <td>1</td>
+            <td class="pos">+0.17%</td>
+            <td><a href="replay/NEWT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/PROMPT-USDT-USDT.html">PROMPT/USDT:USDT</a></td>
+            <td>28.6</td>
+            <td>13.63</td>
+            <td>0.01912</td>
+            <td class="neg">-6.82</td>
+            <td>5</td>
+            <td class="neg">-7.50%</td>
+            <td><a href="replay/PROMPT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/YFI-USDT-USDT.html">YFI/USDT:USDT</a></td>
+            <td>23.3</td>
+            <td>3.80</td>
+            <td>2012</td>
+            <td class="neg">-7.07</td>
+            <td>3</td>
+            <td class="neg">-2.77%</td>
+            <td><a href="replay/YFI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · TRADER ANON · <b>17 FILLS</b></span>
+    <span>BACKTEST 718 SYMBOLS · SCAN 42.7S · TF 1H · LATENCY <b>59.5 MS</b></span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b> · 2026-09-16</span>
+  </div>
+</div>
+
+<script type="application/json" id="d-curve">[-15.8, 13.4, 42.6, 26.8, 11.0, -4.8, -20.6, 8.6, 37.8, 39.32, 23.52, 7.72, -8.08, -23.88, -29.11, -28.16, -43.96]</script>
+<script type="application/json" id="d-trades">[{"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AIN", "symbol": "AIN/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "HAEDAL", "symbol": "HAEDAL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AIN", "symbol": "AIN/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PROMPT", "symbol": "PROMPT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PROMPT", "symbol": "PROMPT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PROMPT", "symbol": "PROMPT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PROMPT", "symbol": "PROMPT/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AVAAI", "symbol": "AVAAI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "COOKIE", "symbol": "COOKIE/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.2316, "pnl_usdt": 1.5159, "short": "YFI", "symbol": "YFI/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PROMPT", "symbol": "PROMPT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "YFI", "symbol": "YFI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AIN", "symbol": "AIN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AVAAI", "symbol": "AVAAI/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.4422, "pnl_usdt": -5.222, "short": "COOKIE", "symbol": "COOKIE/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.1742, "pnl_usdt": 0.9422, "short": "NEWT", "symbol": "NEWT/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "YFI", "symbol": "YFI/USDT:USDT", "win": false}]</script>
+<script type="application/json" id="d-wins">[{"bars_held": 5, "entry_price": 0.06689, "entry_time_iso": "2026-08-31 00:00 UTC", "entry_time_short": "Aug 31 00:00", "exit_price": 0.0688967, "exit_reason": "tp", "exit_time_short": "Aug 31 05:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AIN", "symbol": "AIN/USDT:USDT"}, {"bars_held": 13, "entry_price": 0.007796, "entry_time_iso": "2026-09-11 00:00 UTC", "entry_time_short": "Sep 11 00:00", "exit_price": 0.00802988, "exit_reason": "tp", "exit_time_short": "Sep 11 13:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AVAAI", "symbol": "AVAAI/USDT:USDT"}, {"bars_held": 12, "entry_price": 0.010323, "entry_time_iso": "2026-09-11 02:00 UTC", "entry_time_short": "Sep 11 02:00", "exit_price": 0.01063269, "exit_reason": "tp", "exit_time_short": "Sep 11 14:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "COOKIE", "symbol": "COOKIE/USDT:USDT"}, {"bars_held": 2, "entry_price": 0.01779, "entry_time_iso": "2026-08-31 00:00 UTC", "entry_time_short": "Aug 31 00:00", "exit_price": 0.018323700000000002, "exit_reason": "tp", "exit_time_short": "Aug 31 02:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "HAEDAL", "symbol": "HAEDAL/USDT:USDT"}, {"bars_held": 24, "entry_price": 2159.0, "entry_time_iso": "2026-09-14 00:00 UTC", "entry_time_short": "Sep 14 00:00", "exit_price": 2164.0, "exit_reason": "time", "exit_time_short": "Sep 15 00:00", "multiple": 1.0023, "pnl_pct": 0.2316, "pnl_usdt": 1.5159, "short": "YFI", "symbol": "YFI/USDT:USDT"}]</script>
+<script type="application/json" id="d-ridge">{"AIN/USDT:USDT": [-1.5, 3.0, -1.5], "AVAAI/USDT:USDT": [3.0, -1.5], "COOKIE/USDT:USDT": [3.0, -0.4422], "HAEDAL/USDT:USDT": [3.0], "NEWT/USDT:USDT": [0.1742], "PROMPT/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5], "YFI/USDT:USDT": [0.2316, -1.5, -1.5]}</script>
+<script type="application/json" id="d-graph">{"edges": [{"a": "AIN/USDT:USDT", "b": "AVAAI/USDT:USDT", "rho": 0.35}, {"a": "COOKIE/USDT:USDT", "b": "HAEDAL/USDT:USDT", "rho": 0.394}, {"a": "COOKIE/USDT:USDT", "b": "NEWT/USDT:USDT", "rho": 0.309}, {"a": "COOKIE/USDT:USDT", "b": "PROMPT/USDT:USDT", "rho": 0.542}, {"a": "COOKIE/USDT:USDT", "b": "YFI/USDT:USDT", "rho": 0.609}, {"a": "COOKIE/USDT:USDT", "b": "ALL/USDT:USDT", "rho": 0.725}, {"a": "COOKIE/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.663}, {"a": "COOKIE/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.661}, {"a": "COOKIE/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.618}, {"a": "COOKIE/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.679}, {"a": "COOKIE/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.552}, {"a": "COOKIE/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.615}, {"a": "COOKIE/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.582}, {"a": "COOKIE/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.676}, {"a": "COOKIE/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.614}, {"a": "COOKIE/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.562}, {"a": "COOKIE/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.572}, {"a": "COOKIE/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.581}, {"a": "COOKIE/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.552}, {"a": "COOKIE/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.591}, {"a": "COOKIE/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.562}, {"a": "COOKIE/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.543}, {"a": "COOKIE/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.542}, {"a": "COOKIE/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.563}, {"a": "COOKIE/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.544}, {"a": "COOKIE/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.549}, {"a": "COOKIE/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.514}, {"a": "COOKIE/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.593}, {"a": "COOKIE/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.524}, {"a": "COOKIE/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.64}, {"a": "COOKIE/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.534}, {"a": "COOKIE/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.571}, {"a": "COOKIE/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.563}, {"a": "COOKIE/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.601}, {"a": "COOKIE/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.561}, {"a": "COOKIE/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.614}, {"a": "COOKIE/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.578}, {"a": "COOKIE/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.688}, {"a": "COOKIE/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.56}, {"a": "COOKIE/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.561}, {"a": "COOKIE/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.565}, {"a": "COOKIE/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.483}, {"a": "COOKIE/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.511}, {"a": "COOKIE/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.545}, {"a": "COOKIE/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.572}, {"a": "HAEDAL/USDT:USDT", "b": "PROMPT/USDT:USDT", "rho": 0.349}, {"a": "HAEDAL/USDT:USDT", "b": "YFI/USDT:USDT", "rho": 0.332}, {"a": "HAEDAL/USDT:USDT", "b": "ALL/USDT:USDT", "rho": 0.396}, {"a": "HAEDAL/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.388}, {"a": "HAEDAL/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.363}, {"a": "HAEDAL/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.386}, {"a": "HAEDAL/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.326}, {"a": "HAEDAL/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.302}, {"a": "HAEDAL/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.343}, {"a": "HAEDAL/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.358}, {"a": "HAEDAL/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.314}, {"a": "HAEDAL/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.301}, {"a": "HAEDAL/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.317}, {"a": "HAEDAL/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.368}, {"a": "HAEDAL/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.339}, {"a": "HAEDAL/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.301}, {"a": "HAEDAL/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.354}, {"a": "HAEDAL/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.351}, {"a": "HAEDAL/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.302}, {"a": "HAEDAL/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.343}, {"a": "HAEDAL/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.361}, {"a": "HAEDAL/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.311}, {"a": "HAEDAL/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.307}, {"a": "NEWT/USDT:USDT", "b": "YFI/USDT:USDT", "rho": 0.379}, {"a": "NEWT/USDT:USDT", "b": "ALL/USDT:USDT", "rho": 0.391}, {"a": "NEWT/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.373}, {"a": "NEWT/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.343}, {"a": "NEWT/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.391}, {"a": "NEWT/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.381}, {"a": "NEWT/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.355}, {"a": "NEWT/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.351}, {"a": "NEWT/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.36}, {"a": "NEWT/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.343}, {"a": "NEWT/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.311}, {"a": "NEWT/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.371}, {"a": "NEWT/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.333}, {"a": "NEWT/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.343}, {"a": "NEWT/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.33}, {"a": "NEWT/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.335}, {"a": "NEWT/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.389}, {"a": "NEWT/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.352}, {"a": "NEWT/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.352}, {"a": "NEWT/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.341}, {"a": "NEWT/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.318}, {"a": "NEWT/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.339}, {"a": "NEWT/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.337}, {"a": "NEWT/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.316}, {"a": "NEWT/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.347}, {"a": "NEWT/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.337}, {"a": "NEWT/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.33}, {"a": "NEWT/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.379}, {"a": "NEWT/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.388}, {"a": "NEWT/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.363}, {"a": "NEWT/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.332}, {"a": "NEWT/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.338}, {"a": "NEWT/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.355}, {"a": "NEWT/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.327}, {"a": "NEWT/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.321}, {"a": "NEWT/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.335}, {"a": "NEWT/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.355}, {"a": "NEWT/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.343}, {"a": "NEWT/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.35}, {"a": "PROMPT/USDT:USDT", "b": "YFI/USDT:USDT", "rho": 0.557}, {"a": "PROMPT/USDT:USDT", "b": "ALL/USDT:USDT", "rho": 0.652}, {"a": "PROMPT/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.589}, {"a": "PROMPT/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.544}, {"a": "PROMPT/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.56}, {"a": "PROMPT/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.586}, {"a": "PROMPT/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.504}, {"a": "PROMPT/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.495}, {"a": "PROMPT/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.511}, {"a": "PROMPT/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.538}, {"a": "PROMPT/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.552}, {"a": "PROMPT/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.494}, {"a": "PROMPT/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.458}, {"a": "PROMPT/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.507}, {"a": "PROMPT/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.531}, {"a": "PROMPT/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.504}, {"a": "PROMPT/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.494}, {"a": "PROMPT/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.537}, {"a": "PROMPT/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.453}, {"a": "PROMPT/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.454}, {"a": "PROMPT/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.48}, {"a": "PROMPT/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.485}, {"a": "PROMPT/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.43}, {"a": "PROMPT/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.542}, {"a": "PROMPT/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.466}, {"a": "PROMPT/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.538}, {"a": "PROMPT/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.498}, {"a": "PROMPT/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.511}, {"a": "PROMPT/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.457}, {"a": "PROMPT/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.506}, {"a": "PROMPT/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.482}, {"a": "PROMPT/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.532}, {"a": "PROMPT/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.522}, {"a": "PROMPT/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.515}, {"a": "PROMPT/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.525}, {"a": "PROMPT/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.484}, {"a": "PROMPT/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.455}, {"a": "PROMPT/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.479}, {"a": "PROMPT/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.508}, {"a": "PROMPT/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.478}, {"a": "PROMPT/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.536}, {"a": "YFI/USDT:USDT", "b": "ALL/USDT:USDT", "rho": 0.826}, {"a": "YFI/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.761}, {"a": "YFI/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.754}, {"a": "YFI/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.747}, {"a": "YFI/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.744}, {"a": "YFI/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.744}, {"a": "YFI/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.739}, {"a": "YFI/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.738}, {"a": "YFI/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.736}, {"a": "YFI/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.73}, {"a": "YFI/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.729}, {"a": "YFI/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.728}, {"a": "YFI/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.726}, {"a": "YFI/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.725}, {"a": "YFI/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.725}, {"a": "YFI/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.721}, {"a": "YFI/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.721}, {"a": "YFI/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.718}, {"a": "YFI/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.711}, {"a": "YFI/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.711}, {"a": "YFI/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.708}, {"a": "YFI/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.706}, {"a": "YFI/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.704}, {"a": "YFI/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.703}, {"a": "YFI/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.702}, {"a": "YFI/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.701}, {"a": "YFI/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.7}, {"a": "YFI/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.699}, {"a": "YFI/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.697}, {"a": "YFI/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.697}, {"a": "YFI/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.697}, {"a": "YFI/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.697}, {"a": "YFI/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.696}, {"a": "YFI/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.696}, {"a": "YFI/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.694}, {"a": "YFI/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.692}, {"a": "YFI/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.689}, {"a": "YFI/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.688}, {"a": "YFI/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.687}, {"a": "YFI/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.687}, {"a": "ALL/USDT:USDT", "b": "OGN/USDT:USDT", "rho": 0.881}, {"a": "ALL/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.839}, {"a": "ALL/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.832}, {"a": "ALL/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.857}, {"a": "ALL/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.784}, {"a": "ALL/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.777}, {"a": "ALL/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.782}, {"a": "ALL/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.843}, {"a": "ALL/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.839}, {"a": "ALL/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.79}, {"a": "ALL/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.808}, {"a": "ALL/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.807}, {"a": "ALL/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.805}, {"a": "ALL/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.82}, {"a": "ALL/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.799}, {"a": "ALL/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.809}, {"a": "ALL/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.77}, {"a": "ALL/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.785}, {"a": "ALL/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.787}, {"a": "ALL/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.802}, {"a": "ALL/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.744}, {"a": "ALL/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.801}, {"a": "ALL/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.768}, {"a": "ALL/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.816}, {"a": "ALL/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.793}, {"a": "ALL/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.774}, {"a": "ALL/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.808}, {"a": "ALL/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.778}, {"a": "ALL/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.783}, {"a": "ALL/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.82}, {"a": "ALL/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.79}, {"a": "ALL/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.794}, {"a": "ALL/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.765}, {"a": "ALL/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.773}, {"a": "ALL/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.788}, {"a": "ALL/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.744}, {"a": "ALL/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.771}, {"a": "ALL/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.793}, {"a": "ALL/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.783}, {"a": "OGN/USDT:USDT", "b": "AXS/USDT:USDT", "rho": 0.755}, {"a": "OGN/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.771}, {"a": "OGN/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.78}, {"a": "OGN/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.692}, {"a": "OGN/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.725}, {"a": "OGN/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.708}, {"a": "OGN/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.81}, {"a": "OGN/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.749}, {"a": "OGN/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.74}, {"a": "OGN/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.709}, {"a": "OGN/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.718}, {"a": "OGN/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.744}, {"a": "OGN/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.73}, {"a": "OGN/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.735}, {"a": "OGN/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.728}, {"a": "OGN/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.715}, {"a": "OGN/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.707}, {"a": "OGN/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.688}, {"a": "OGN/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.72}, {"a": "OGN/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.649}, {"a": "OGN/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.772}, {"a": "OGN/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.697}, {"a": "OGN/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.761}, {"a": "OGN/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.676}, {"a": "OGN/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.7}, {"a": "OGN/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.715}, {"a": "OGN/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.746}, {"a": "OGN/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.72}, {"a": "OGN/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.798}, {"a": "OGN/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.728}, {"a": "OGN/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.757}, {"a": "OGN/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.724}, {"a": "OGN/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.685}, {"a": "OGN/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.723}, {"a": "OGN/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.654}, {"a": "OGN/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.708}, {"a": "OGN/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.698}, {"a": "OGN/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.712}, {"a": "AXS/USDT:USDT", "b": "MAGIC/USDT:USDT", "rho": 0.774}, {"a": "AXS/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.749}, {"a": "AXS/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.741}, {"a": "AXS/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.754}, {"a": "AXS/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.68}, {"a": "AXS/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.734}, {"a": "AXS/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.772}, {"a": "AXS/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.716}, {"a": "AXS/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.747}, {"a": "AXS/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.772}, {"a": "AXS/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.751}, {"a": "AXS/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.765}, {"a": "AXS/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.735}, {"a": "AXS/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.75}, {"a": "AXS/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.742}, {"a": "AXS/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.757}, {"a": "AXS/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.732}, {"a": "AXS/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.746}, {"a": "AXS/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.678}, {"a": "AXS/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.742}, {"a": "AXS/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.728}, {"a": "AXS/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.697}, {"a": "AXS/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.73}, {"a": "AXS/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.697}, {"a": "AXS/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.731}, {"a": "AXS/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.693}, {"a": "AXS/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.702}, {"a": "AXS/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.711}, {"a": "AXS/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.72}, {"a": "AXS/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.694}, {"a": "AXS/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.702}, {"a": "AXS/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.707}, {"a": "AXS/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.723}, {"a": "AXS/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.703}, {"a": "AXS/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.673}, {"a": "AXS/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.726}, {"a": "AXS/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.754}, {"a": "MAGIC/USDT:USDT", "b": "XAI/USDT:USDT", "rho": 0.776}, {"a": "MAGIC/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.672}, {"a": "MAGIC/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.702}, {"a": "MAGIC/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.705}, {"a": "MAGIC/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.785}, {"a": "MAGIC/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.723}, {"a": "MAGIC/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.653}, {"a": "MAGIC/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.691}, {"a": "MAGIC/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.681}, {"a": "MAGIC/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.725}, {"a": "MAGIC/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.683}, {"a": "MAGIC/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.758}, {"a": "MAGIC/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.682}, {"a": "MAGIC/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.672}, {"a": "MAGIC/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.674}, {"a": "MAGIC/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.679}, {"a": "MAGIC/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.709}, {"a": "MAGIC/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.646}, {"a": "MAGIC/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.749}, {"a": "MAGIC/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.671}, {"a": "MAGIC/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.73}, {"a": "MAGIC/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.683}, {"a": "MAGIC/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.708}, {"a": "MAGIC/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.68}, {"a": "MAGIC/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.696}, {"a": "MAGIC/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.721}, {"a": "MAGIC/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.745}, {"a": "MAGIC/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.661}, {"a": "MAGIC/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.712}, {"a": "MAGIC/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.68}, {"a": "MAGIC/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.665}, {"a": "MAGIC/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.659}, {"a": "MAGIC/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.666}, {"a": "MAGIC/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.698}, {"a": "MAGIC/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.673}, {"a": "MAGIC/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.732}, {"a": "XAI/USDT:USDT", "b": "ADA/USDT:USDT", "rho": 0.696}, {"a": "XAI/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.753}, {"a": "XAI/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.713}, {"a": "XAI/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.772}, {"a": "XAI/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.736}, {"a": "XAI/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.67}, {"a": "XAI/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.735}, {"a": "XAI/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.719}, {"a": "XAI/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.721}, {"a": "XAI/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.711}, {"a": "XAI/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.722}, {"a": "XAI/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.711}, {"a": "XAI/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.715}, {"a": "XAI/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.696}, {"a": "XAI/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.702}, {"a": "XAI/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.717}, {"a": "XAI/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.655}, {"a": "XAI/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.739}, {"a": "XAI/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.668}, {"a": "XAI/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.725}, {"a": "XAI/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.664}, {"a": "XAI/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.709}, {"a": "XAI/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.719}, {"a": "XAI/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.72}, {"a": "XAI/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.708}, {"a": "XAI/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.75}, {"a": "XAI/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.692}, {"a": "XAI/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.751}, {"a": "XAI/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.713}, {"a": "XAI/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.674}, {"a": "XAI/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.694}, {"a": "XAI/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.653}, {"a": "XAI/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.676}, {"a": "XAI/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.704}, {"a": "XAI/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.735}, {"a": "ADA/USDT:USDT", "b": "YGG/USDT:USDT", "rho": 0.639}, {"a": "ADA/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.661}, {"a": "ADA/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.689}, {"a": "ADA/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.715}, {"a": "ADA/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.81}, {"a": "ADA/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.779}, {"a": "ADA/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.815}, {"a": "ADA/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.731}, {"a": "ADA/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.817}, {"a": "ADA/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.663}, {"a": "ADA/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.773}, {"a": "ADA/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.798}, {"a": "ADA/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.686}, {"a": "ADA/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.823}, {"a": "ADA/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.705}, {"a": "ADA/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.721}, {"a": "ADA/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.663}, {"a": "ADA/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.728}, {"a": "ADA/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.61}, {"a": "ADA/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.787}, {"a": "ADA/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.603}, {"a": "ADA/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.76}, {"a": "ADA/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.622}, {"a": "ADA/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.724}, {"a": "ADA/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.633}, {"a": "ADA/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.802}, {"a": "ADA/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.6}, {"a": "ADA/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.644}, {"a": "ADA/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.728}, {"a": "ADA/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.728}, {"a": "ADA/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.742}, {"a": "ADA/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.632}, {"a": "ADA/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.722}, {"a": "ADA/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.685}, {"a": "YGG/USDT:USDT", "b": "IO/USDT:USDT", "rho": 0.666}, {"a": "YGG/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.72}, {"a": "YGG/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.689}, {"a": "YGG/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.593}, {"a": "YGG/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.671}, {"a": "YGG/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.651}, {"a": "YGG/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.698}, {"a": "YGG/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.667}, {"a": "YGG/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.685}, {"a": "YGG/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.674}, {"a": "YGG/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.639}, {"a": "YGG/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.659}, {"a": "YGG/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.651}, {"a": "YGG/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.65}, {"a": "YGG/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.676}, {"a": "YGG/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.666}, {"a": "YGG/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.621}, {"a": "YGG/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.654}, {"a": "YGG/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.635}, {"a": "YGG/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.649}, {"a": "YGG/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.689}, {"a": "YGG/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.661}, {"a": "YGG/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.62}, {"a": "YGG/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.692}, {"a": "YGG/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.645}, {"a": "YGG/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.659}, {"a": "YGG/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.618}, {"a": "YGG/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.636}, {"a": "YGG/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.665}, {"a": "YGG/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.599}, {"a": "YGG/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.645}, {"a": "YGG/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.682}, {"a": "YGG/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.675}, {"a": "IO/USDT:USDT", "b": "C98/USDT:USDT", "rho": 0.691}, {"a": "IO/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.696}, {"a": "IO/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.658}, {"a": "IO/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.695}, {"a": "IO/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.7}, {"a": "IO/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.67}, {"a": "IO/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.675}, {"a": "IO/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.659}, {"a": "IO/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.711}, {"a": "IO/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.686}, {"a": "IO/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.666}, {"a": "IO/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.66}, {"a": "IO/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.704}, {"a": "IO/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.663}, {"a": "IO/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.682}, {"a": "IO/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.685}, {"a": "IO/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.665}, {"a": "IO/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.683}, {"a": "IO/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.653}, {"a": "IO/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.702}, {"a": "IO/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.626}, {"a": "IO/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.665}, {"a": "IO/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.675}, {"a": "IO/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.647}, {"a": "IO/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.643}, {"a": "IO/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.624}, {"a": "IO/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.648}, {"a": "IO/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.732}, {"a": "IO/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.663}, {"a": "IO/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.633}, {"a": "IO/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.652}, {"a": "IO/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.699}, {"a": "C98/USDT:USDT", "b": "1000SATS/USDT:USDT", "rho": 0.748}, {"a": "C98/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.627}, {"a": "C98/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.682}, {"a": "C98/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.698}, {"a": "C98/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.726}, {"a": "C98/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.68}, {"a": "C98/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.716}, {"a": "C98/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.684}, {"a": "C98/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.66}, {"a": "C98/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.674}, {"a": "C98/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.668}, {"a": "C98/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.712}, {"a": "C98/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.656}, {"a": "C98/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.753}, {"a": "C98/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.622}, {"a": "C98/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.718}, {"a": "C98/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.656}, {"a": "C98/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.688}, {"a": "C98/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.68}, {"a": "C98/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.664}, {"a": "C98/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.666}, {"a": "C98/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.78}, {"a": "C98/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.662}, {"a": "C98/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.757}, {"a": "C98/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.677}, {"a": "C98/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.664}, {"a": "C98/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.653}, {"a": "C98/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.64}, {"a": "C98/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.664}, {"a": "C98/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.673}, {"a": "C98/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.692}, {"a": "1000SATS/USDT:USDT", "b": "SOL/USDT:USDT", "rho": 0.672}, {"a": "1000SATS/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.732}, {"a": "1000SATS/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.741}, {"a": "1000SATS/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.724}, {"a": "1000SATS/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.741}, {"a": "1000SATS/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.705}, {"a": "1000SATS/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.745}, {"a": "1000SATS/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.701}, {"a": "1000SATS/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.713}, {"a": "1000SATS/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.706}, {"a": "1000SATS/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.752}, {"a": "1000SATS/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.692}, {"a": "1000SATS/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.712}, {"a": "1000SATS/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.705}, {"a": "1000SATS/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.705}, {"a": "1000SATS/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.726}, {"a": "1000SATS/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.663}, {"a": "1000SATS/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.736}, {"a": "1000SATS/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.66}, {"a": "1000SATS/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.675}, {"a": "1000SATS/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.69}, {"a": "1000SATS/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.724}, {"a": "1000SATS/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.688}, {"a": "1000SATS/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.672}, {"a": "1000SATS/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.695}, {"a": "1000SATS/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.715}, {"a": "1000SATS/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.684}, {"a": "1000SATS/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.697}, {"a": "1000SATS/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.725}, {"a": "1000SATS/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.7}, {"a": "SOL/USDT:USDT", "b": "PNUT/USDT:USDT", "rho": 0.749}, {"a": "SOL/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.798}, {"a": "SOL/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.719}, {"a": "SOL/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.802}, {"a": "SOL/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.64}, {"a": "SOL/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.763}, {"a": "SOL/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.791}, {"a": "SOL/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.681}, {"a": "SOL/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.768}, {"a": "SOL/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.661}, {"a": "SOL/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.669}, {"a": "SOL/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.65}, {"a": "SOL/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.787}, {"a": "SOL/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.626}, {"a": "SOL/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.788}, {"a": "SOL/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.584}, {"a": "SOL/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.715}, {"a": "SOL/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.627}, {"a": "SOL/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.769}, {"a": "SOL/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.635}, {"a": "SOL/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.816}, {"a": "SOL/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.609}, {"a": "SOL/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.673}, {"a": "SOL/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.764}, {"a": "SOL/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.74}, {"a": "SOL/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.715}, {"a": "SOL/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.642}, {"a": "SOL/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.675}, {"a": "SOL/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.644}, {"a": "PNUT/USDT:USDT", "b": "SUI/USDT:USDT", "rho": 0.798}, {"a": "PNUT/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.783}, {"a": "PNUT/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.81}, {"a": "PNUT/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.706}, {"a": "PNUT/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.792}, {"a": "PNUT/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.76}, {"a": "PNUT/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.699}, {"a": "PNUT/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.764}, {"a": "PNUT/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.722}, {"a": "PNUT/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.753}, {"a": "PNUT/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.699}, {"a": "PNUT/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.763}, {"a": "PNUT/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.672}, {"a": "PNUT/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.776}, {"a": "PNUT/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.618}, {"a": "PNUT/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.769}, {"a": "PNUT/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.672}, {"a": "PNUT/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.693}, {"a": "PNUT/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.674}, {"a": "PNUT/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.752}, {"a": "PNUT/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.636}, {"a": "PNUT/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.716}, {"a": "PNUT/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.8}, {"a": "PNUT/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.742}, {"a": "PNUT/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.738}, {"a": "PNUT/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.669}, {"a": "PNUT/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.751}, {"a": "PNUT/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.719}, {"a": "SUI/USDT:USDT", "b": "TURBO/USDT:USDT", "rho": 0.769}, {"a": "SUI/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.825}, {"a": "SUI/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.688}, {"a": "SUI/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.8}, {"a": "SUI/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.831}, {"a": "SUI/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.734}, {"a": "SUI/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.829}, {"a": "SUI/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.739}, {"a": "SUI/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.747}, {"a": "SUI/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.717}, {"a": "SUI/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.771}, {"a": "SUI/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.66}, {"a": "SUI/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.825}, {"a": "SUI/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.642}, {"a": "SUI/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.773}, {"a": "SUI/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.673}, {"a": "SUI/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.719}, {"a": "SUI/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.651}, {"a": "SUI/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.813}, {"a": "SUI/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.636}, {"a": "SUI/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.698}, {"a": "SUI/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.73}, {"a": "SUI/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.776}, {"a": "SUI/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.777}, {"a": "SUI/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.689}, {"a": "SUI/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.746}, {"a": "SUI/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.701}, {"a": "TURBO/USDT:USDT", "b": "1000SHIB/USDT:USDT", "rho": 0.735}, {"a": "TURBO/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.69}, {"a": "TURBO/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.758}, {"a": "TURBO/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.703}, {"a": "TURBO/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.702}, {"a": "TURBO/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.763}, {"a": "TURBO/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.723}, {"a": "TURBO/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.725}, {"a": "TURBO/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.703}, {"a": "TURBO/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.744}, {"a": "TURBO/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.688}, {"a": "TURBO/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.73}, {"a": "TURBO/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.638}, {"a": "TURBO/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.73}, {"a": "TURBO/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.637}, {"a": "TURBO/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.674}, {"a": "TURBO/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.677}, {"a": "TURBO/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.691}, {"a": "TURBO/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.662}, {"a": "TURBO/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.691}, {"a": "TURBO/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.753}, {"a": "TURBO/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.726}, {"a": "TURBO/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.667}, {"a": "TURBO/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.657}, {"a": "TURBO/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.706}, {"a": "TURBO/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.708}, {"a": "1000SHIB/USDT:USDT", "b": "CFX/USDT:USDT", "rho": 0.683}, {"a": "1000SHIB/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.756}, {"a": "1000SHIB/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.807}, {"a": "1000SHIB/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.696}, {"a": "1000SHIB/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.793}, {"a": "1000SHIB/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.724}, {"a": "1000SHIB/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.738}, {"a": "1000SHIB/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.711}, {"a": "1000SHIB/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.764}, {"a": "1000SHIB/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.632}, {"a": "1000SHIB/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.802}, {"a": "1000SHIB/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.625}, {"a": "1000SHIB/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.76}, {"a": "1000SHIB/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.663}, {"a": "1000SHIB/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.731}, {"a": "1000SHIB/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.668}, {"a": "1000SHIB/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.859}, {"a": "1000SHIB/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.634}, {"a": "1000SHIB/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.723}, {"a": "1000SHIB/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.776}, {"a": "1000SHIB/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.763}, {"a": "1000SHIB/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.757}, {"a": "1000SHIB/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.671}, {"a": "1000SHIB/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.745}, {"a": "1000SHIB/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.703}, {"a": "CFX/USDT:USDT", "b": "POPCAT/USDT:USDT", "rho": 0.696}, {"a": "CFX/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.663}, {"a": "CFX/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.697}, {"a": "CFX/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.691}, {"a": "CFX/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.724}, {"a": "CFX/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.684}, {"a": "CFX/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.725}, {"a": "CFX/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.67}, {"a": "CFX/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.632}, {"a": "CFX/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.679}, {"a": "CFX/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.637}, {"a": "CFX/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.707}, {"a": "CFX/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.661}, {"a": "CFX/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.708}, {"a": "CFX/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.688}, {"a": "CFX/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.653}, {"a": "CFX/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.672}, {"a": "CFX/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.661}, {"a": "CFX/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.652}, {"a": "CFX/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.662}, {"a": "CFX/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.655}, {"a": "CFX/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.634}, {"a": "CFX/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.702}, {"a": "CFX/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.688}, {"a": "POPCAT/USDT:USDT", "b": "AVAX/USDT:USDT", "rho": 0.727}, {"a": "POPCAT/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.692}, {"a": "POPCAT/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.761}, {"a": "POPCAT/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.692}, {"a": "POPCAT/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.726}, {"a": "POPCAT/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.716}, {"a": "POPCAT/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.741}, {"a": "POPCAT/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.644}, {"a": "POPCAT/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.785}, {"a": "POPCAT/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.645}, {"a": "POPCAT/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.766}, {"a": "POPCAT/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.653}, {"a": "POPCAT/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.701}, {"a": "POPCAT/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.683}, {"a": "POPCAT/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.734}, {"a": "POPCAT/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.628}, {"a": "POPCAT/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.683}, {"a": "POPCAT/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.754}, {"a": "POPCAT/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.73}, {"a": "POPCAT/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.724}, {"a": "POPCAT/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.689}, {"a": "POPCAT/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.695}, {"a": "POPCAT/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.701}, {"a": "AVAX/USDT:USDT", "b": "SAND/USDT:USDT", "rho": 0.702}, {"a": "AVAX/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.769}, {"a": "AVAX/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.69}, {"a": "AVAX/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.697}, {"a": "AVAX/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.67}, {"a": "AVAX/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.752}, {"a": "AVAX/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.648}, {"a": "AVAX/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.752}, {"a": "AVAX/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.627}, {"a": "AVAX/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.76}, {"a": "AVAX/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.663}, {"a": "AVAX/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.753}, {"a": "AVAX/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.636}, {"a": "AVAX/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.805}, {"a": "AVAX/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.611}, {"a": "AVAX/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.659}, {"a": "AVAX/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.7}, {"a": "AVAX/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.743}, {"a": "AVAX/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.752}, {"a": "AVAX/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.648}, {"a": "AVAX/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.725}, {"a": "AVAX/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.696}, {"a": "SAND/USDT:USDT", "b": "ONDO/USDT:USDT", "rho": 0.708}, {"a": "SAND/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.7}, {"a": "SAND/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.665}, {"a": "SAND/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.686}, {"a": "SAND/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.698}, {"a": "SAND/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.682}, {"a": "SAND/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.7}, {"a": "SAND/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.641}, {"a": "SAND/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.736}, {"a": "SAND/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.654}, {"a": "SAND/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.653}, {"a": "SAND/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.666}, {"a": "SAND/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.682}, {"a": "SAND/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.643}, {"a": "SAND/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.615}, {"a": "SAND/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.654}, {"a": "SAND/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.727}, {"a": "SAND/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.671}, {"a": "SAND/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.619}, {"a": "SAND/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.672}, {"a": "SAND/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.706}, {"a": "ONDO/USDT:USDT", "b": "ARKM/USDT:USDT", "rho": 0.749}, {"a": "ONDO/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.709}, {"a": "ONDO/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.702}, {"a": "ONDO/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.766}, {"a": "ONDO/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.617}, {"a": "ONDO/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.803}, {"a": "ONDO/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.608}, {"a": "ONDO/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.784}, {"a": "ONDO/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.62}, {"a": "ONDO/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.724}, {"a": "ONDO/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.61}, {"a": "ONDO/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.743}, {"a": "ONDO/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.613}, {"a": "ONDO/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.66}, {"a": "ONDO/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.727}, {"a": "ONDO/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.8}, {"a": "ONDO/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.758}, {"a": "ONDO/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.678}, {"a": "ONDO/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.747}, {"a": "ONDO/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.685}, {"a": "ARKM/USDT:USDT", "b": "PEOPLE/USDT:USDT", "rho": 0.668}, {"a": "ARKM/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.733}, {"a": "ARKM/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.66}, {"a": "ARKM/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.65}, {"a": "ARKM/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.7}, {"a": "ARKM/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.64}, {"a": "ARKM/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.737}, {"a": "ARKM/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.668}, {"a": "ARKM/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.671}, {"a": "ARKM/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.699}, {"a": "ARKM/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.699}, {"a": "ARKM/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.672}, {"a": "ARKM/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.629}, {"a": "ARKM/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.678}, {"a": "ARKM/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.758}, {"a": "ARKM/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.666}, {"a": "ARKM/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.663}, {"a": "ARKM/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.719}, {"a": "ARKM/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.686}, {"a": "PEOPLE/USDT:USDT", "b": "SNX/USDT:USDT", "rho": 0.667}, {"a": "PEOPLE/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.692}, {"a": "PEOPLE/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.619}, {"a": "PEOPLE/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.732}, {"a": "PEOPLE/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.607}, {"a": "PEOPLE/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.727}, {"a": "PEOPLE/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.596}, {"a": "PEOPLE/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.674}, {"a": "PEOPLE/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.636}, {"a": "PEOPLE/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.719}, {"a": "PEOPLE/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.602}, {"a": "PEOPLE/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.651}, {"a": "PEOPLE/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.714}, {"a": "PEOPLE/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.676}, {"a": "PEOPLE/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.672}, {"a": "PEOPLE/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.629}, {"a": "PEOPLE/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.677}, {"a": "PEOPLE/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.671}, {"a": "SNX/USDT:USDT", "b": "MEW/USDT:USDT", "rho": 0.662}, {"a": "SNX/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.679}, {"a": "SNX/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.691}, {"a": "SNX/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.667}, {"a": "SNX/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.702}, {"a": "SNX/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.679}, {"a": "SNX/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.71}, {"a": "SNX/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.71}, {"a": "SNX/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.679}, {"a": "SNX/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.682}, {"a": "SNX/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.687}, {"a": "SNX/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.662}, {"a": "SNX/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.7}, {"a": "SNX/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.642}, {"a": "SNX/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.648}, {"a": "SNX/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.685}, {"a": "SNX/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.72}, {"a": "MEW/USDT:USDT", "b": "GUN/USDT:USDT", "rho": 0.627}, {"a": "MEW/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.788}, {"a": "MEW/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.629}, {"a": "MEW/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.722}, {"a": "MEW/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.621}, {"a": "MEW/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.714}, {"a": "MEW/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.607}, {"a": "MEW/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.734}, {"a": "MEW/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.58}, {"a": "MEW/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.666}, {"a": "MEW/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.712}, {"a": "MEW/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.76}, {"a": "MEW/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.685}, {"a": "MEW/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.661}, {"a": "MEW/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.684}, {"a": "MEW/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.671}, {"a": "GUN/USDT:USDT", "b": "PENGU/USDT:USDT", "rho": 0.615}, {"a": "GUN/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.679}, {"a": "GUN/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.669}, {"a": "GUN/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.741}, {"a": "GUN/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.608}, {"a": "GUN/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.716}, {"a": "GUN/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.637}, {"a": "GUN/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.748}, {"a": "GUN/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.626}, {"a": "GUN/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.653}, {"a": "GUN/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.642}, {"a": "GUN/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.595}, {"a": "GUN/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.678}, {"a": "GUN/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.631}, {"a": "GUN/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.675}, {"a": "PENGU/USDT:USDT", "b": "ME/USDT:USDT", "rho": 0.607}, {"a": "PENGU/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.751}, {"a": "PENGU/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.617}, {"a": "PENGU/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.71}, {"a": "PENGU/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.654}, {"a": "PENGU/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.794}, {"a": "PENGU/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.611}, {"a": "PENGU/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.67}, {"a": "PENGU/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.759}, {"a": "PENGU/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.752}, {"a": "PENGU/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.748}, {"a": "PENGU/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.648}, {"a": "PENGU/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.746}, {"a": "PENGU/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.7}, {"a": "ME/USDT:USDT", "b": "RENDER/USDT:USDT", "rho": 0.647}, {"a": "ME/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.671}, {"a": "ME/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.598}, {"a": "ME/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.668}, {"a": "ME/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.616}, {"a": "ME/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.674}, {"a": "ME/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.614}, {"a": "ME/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.577}, {"a": "ME/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.619}, {"a": "ME/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.611}, {"a": "ME/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.632}, {"a": "ME/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.613}, {"a": "ME/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.638}, {"a": "RENDER/USDT:USDT", "b": "RARE/USDT:USDT", "rho": 0.65}, {"a": "RENDER/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.689}, {"a": "RENDER/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.65}, {"a": "RENDER/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.721}, {"a": "RENDER/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.638}, {"a": "RENDER/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.668}, {"a": "RENDER/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.726}, {"a": "RENDER/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.782}, {"a": "RENDER/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.691}, {"a": "RENDER/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.655}, {"a": "RENDER/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.755}, {"a": "RENDER/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.699}, {"a": "RARE/USDT:USDT", "b": "1INCH/USDT:USDT", "rho": 0.653}, {"a": "RARE/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.727}, {"a": "RARE/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.619}, {"a": "RARE/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.668}, {"a": "RARE/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.6}, {"a": "RARE/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.599}, {"a": "RARE/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.646}, {"a": "RARE/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.583}, {"a": "RARE/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.635}, {"a": "RARE/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.638}, {"a": "RARE/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.642}, {"a": "1INCH/USDT:USDT", "b": "BEL/USDT:USDT", "rho": 0.649}, {"a": "1INCH/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.728}, {"a": "1INCH/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.631}, {"a": "1INCH/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.658}, {"a": "1INCH/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.683}, {"a": "1INCH/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.697}, {"a": "1INCH/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.651}, {"a": "1INCH/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.637}, {"a": "1INCH/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.675}, {"a": "1INCH/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.659}, {"a": "BEL/USDT:USDT", "b": "1000PEPE/USDT:USDT", "rho": 0.643}, {"a": "BEL/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.713}, {"a": "BEL/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.665}, {"a": "BEL/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.647}, {"a": "BEL/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.629}, {"a": "BEL/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.612}, {"a": "BEL/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.664}, {"a": "BEL/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.631}, {"a": "BEL/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.687}, {"a": "1000PEPE/USDT:USDT", "b": "GTC/USDT:USDT", "rho": 0.619}, {"a": "1000PEPE/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.7}, {"a": "1000PEPE/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.746}, {"a": "1000PEPE/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.74}, {"a": "1000PEPE/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.708}, {"a": "1000PEPE/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.66}, {"a": "1000PEPE/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.714}, {"a": "1000PEPE/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.66}, {"a": "GTC/USDT:USDT", "b": "KAIA/USDT:USDT", "rho": 0.623}, {"a": "GTC/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.631}, {"a": "GTC/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.631}, {"a": "GTC/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.594}, {"a": "GTC/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.642}, {"a": "GTC/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.657}, {"a": "GTC/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.641}, {"a": "KAIA/USDT:USDT", "b": "NEIRO/USDT:USDT", "rho": 0.674}, {"a": "KAIA/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.646}, {"a": "KAIA/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.646}, {"a": "KAIA/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.614}, {"a": "KAIA/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.694}, {"a": "KAIA/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.664}, {"a": "NEIRO/USDT:USDT", "b": "VIRTUAL/USDT:USDT", "rho": 0.72}, {"a": "NEIRO/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.664}, {"a": "NEIRO/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.669}, {"a": "NEIRO/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.675}, {"a": "NEIRO/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.634}, {"a": "VIRTUAL/USDT:USDT", "b": "HBAR/USDT:USDT", "rho": 0.674}, {"a": "VIRTUAL/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.674}, {"a": "VIRTUAL/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.724}, {"a": "VIRTUAL/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.676}, {"a": "HBAR/USDT:USDT", "b": "MEME/USDT:USDT", "rho": 0.608}, {"a": "HBAR/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.695}, {"a": "HBAR/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.669}, {"a": "MEME/USDT:USDT", "b": "GALA/USDT:USDT", "rho": 0.637}, {"a": "MEME/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.663}, {"a": "GALA/USDT:USDT", "b": "IMX/USDT:USDT", "rho": 0.697}], "hubs": [{"count": 9, "id": "BEAR_CLUSTER", "kind": "bear", "label": "bear_cluster"}, {"count": 35, "id": "HUB_PRIME", "kind": "hub", "label": "hub_prime"}, {"count": 3, "id": "CATALYST_RING", "kind": "catalyst", "label": "catalyst_ring"}], "nodes": [{"btc_rho": 0.086, "change_24h": -74.0, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -100.0, "pnl": -2.4, "short": "ain", "symbol": "AIN/USDT:USDT"}, {"btc_rho": 0.094, "change_24h": -12.88, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -40.61, "pnl": 13.4, "short": "avaai", "symbol": "AVAAI/USDT:USDT"}, {"btc_rho": 0.522, "change_24h": -6.3, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -100.0, "pnl": 23.98, "short": "cookie", "symbol": "COOKIE/USDT:USDT"}, {"btc_rho": 0.237, "change_24h": -5.97, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -100.0, "pnl": 29.2, "short": "haedal", "symbol": "HAEDAL/USDT:USDT"}, {"btc_rho": 0.33, "change_24h": -9.39, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -25.96, "pnl": 0.94, "short": "newt", "symbol": "NEWT/USDT:USDT"}, {"btc_rho": 0.494, "change_24h": -6.82, "hit": true, "hub": "BEAR_CLUSTER", "momentum": -100.0, "pnl": -79.0, "short": "prompt", "symbol": "PROMPT/USDT:USDT"}, {"btc_rho": 0.655, "change_24h": -7.07, "hit": true, "hub": "HUB_PRIME", "momentum": -100.0, "pnl": -30.08, "short": "yfi", "symbol": "YFI/USDT:USDT"}, {"btc_rho": 0.739, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -6.0, "pnl": 0.0, "short": "all", "symbol": "ALL/USDT:USDT"}, {"btc_rho": 0.701, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -6.55, "pnl": 0.0, "short": "ogn", "symbol": "OGN/USDT:USDT"}, {"btc_rho": 0.682, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 32.35, "pnl": 0.0, "short": "axs", "symbol": "AXS/USDT:USDT"}, {"btc_rho": 0.621, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -2.47, "pnl": 0.0, "short": "magic", "symbol": "MAGIC/USDT:USDT"}, {"btc_rho": 0.629, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -8.95, "pnl": 0.0, "short": "xai", "symbol": "XAI/USDT:USDT"}, {"btc_rho": 0.746, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -10.98, "pnl": 0.0, "short": "ada", "symbol": "ADA/USDT:USDT"}, {"btc_rho": 0.568, "change_24h": null, "hit": false, "hub": "CATALYST_RING", "momentum": 12.13, "pnl": 0.0, "short": "ygg", "symbol": "YGG/USDT:USDT"}, {"btc_rho": 0.624, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 42.33, "pnl": 0.0, "short": "io", "symbol": "IO/USDT:USDT"}, {"btc_rho": 0.621, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -8.67, "pnl": 0.0, "short": "c98", "symbol": "C98/USDT:USDT"}, {"btc_rho": 0.633, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -7.34, "pnl": 0.0, "short": "1000sats", "symbol": "1000SATS/USDT:USDT"}, {"btc_rho": 0.853, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 31.13, "pnl": 0.0, "short": "sol", "symbol": "SOL/USDT:USDT"}, {"btc_rho": 0.668, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 8.17, "pnl": 0.0, "short": "pnut", "symbol": "PNUT/USDT:USDT"}, {"btc_rho": 0.732, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 13.05, "pnl": 0.0, "short": "sui", "symbol": "SUI/USDT:USDT"}, {"btc_rho": 0.663, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -37.54, "pnl": 0.0, "short": "turbo", "symbol": "TURBO/USDT:USDT"}, {"btc_rho": 0.759, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -11.56, "pnl": 0.0, "short": "1000shib", "symbol": "1000SHIB/USDT:USDT"}, {"btc_rho": 0.624, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -61.93, "pnl": 0.0, "short": "cfx", "symbol": "CFX/USDT:USDT"}, {"btc_rho": 0.701, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 30.59, "pnl": 0.0, "short": "popcat", "symbol": "POPCAT/USDT:USDT"}, {"btc_rho": 0.733, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 24.1, "pnl": 0.0, "short": "avax", "symbol": "AVAX/USDT:USDT"}, {"btc_rho": 0.628, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -25.44, "pnl": 0.0, "short": "sand", "symbol": "SAND/USDT:USDT"}, {"btc_rho": 0.725, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -12.37, "pnl": 0.0, "short": "ondo", "symbol": "ONDO/USDT:USDT"}, {"btc_rho": 0.65, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 10.4, "pnl": 0.0, "short": "arkm", "symbol": "ARKM/USDT:USDT"}, {"btc_rho": 0.611, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -33.54, "pnl": 0.0, "short": "people", "symbol": "PEOPLE/USDT:USDT"}, {"btc_rho": 0.646, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -3.24, "pnl": 0.0, "short": "snx", "symbol": "SNX/USDT:USDT"}, {"btc_rho": 0.684, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 26.07, "pnl": 0.0, "short": "mew", "symbol": "MEW/USDT:USDT"}, {"btc_rho": 0.543, "change_24h": null, "hit": false, "hub": "BEAR_CLUSTER", "momentum": -40.08, "pnl": 0.0, "short": "gun", "symbol": "GUN/USDT:USDT"}, {"btc_rho": 0.745, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 6.16, "pnl": 0.0, "short": "pengu", "symbol": "PENGU/USDT:USDT"}, {"btc_rho": 0.529, "change_24h": null, "hit": false, "hub": "BEAR_CLUSTER", "momentum": -24.95, "pnl": 0.0, "short": "me", "symbol": "ME/USDT:USDT"}, {"btc_rho": 0.657, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -41.02, "pnl": 0.0, "short": "render", "symbol": "RENDER/USDT:USDT"}, {"btc_rho": 0.571, "change_24h": null, "hit": false, "hub": "CATALYST_RING", "momentum": 8.72, "pnl": 0.0, "short": "rare", "symbol": "RARE/USDT:USDT"}, {"btc_rho": 0.764, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -17.52, "pnl": 0.0, "short": "1inch", "symbol": "1INCH/USDT:USDT"}, {"btc_rho": 0.588, "change_24h": null, "hit": false, "hub": "CATALYST_RING", "momentum": 21.93, "pnl": 0.0, "short": "bel", "symbol": "BEL/USDT:USDT"}, {"btc_rho": 0.795, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 10.4, "pnl": 0.0, "short": "1000pepe", "symbol": "1000PEPE/USDT:USDT"}, {"btc_rho": 0.584, "change_24h": null, "hit": false, "hub": "BEAR_CLUSTER", "momentum": -26.19, "pnl": 0.0, "short": "gtc", "symbol": "GTC/USDT:USDT"}, {"btc_rho": 0.645, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -32.96, "pnl": 0.0, "short": "kaia", "symbol": "KAIA/USDT:USDT"}, {"btc_rho": 0.704, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -31.17, "pnl": 0.0, "short": "neiro", "symbol": "NEIRO/USDT:USDT"}, {"btc_rho": 0.7, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 34.3, "pnl": 0.0, "short": "virtual", "symbol": "VIRTUAL/USDT:USDT"}, {"btc_rho": 0.638, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 17.28, "pnl": 0.0, "short": "hbar", "symbol": "HBAR/USDT:USDT"}, {"btc_rho": 0.619, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 11.65, "pnl": 0.0, "short": "meme", "symbol": "MEME/USDT:USDT"}, {"btc_rho": 0.629, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": 75.31, "pnl": 0.0, "short": "gala", "symbol": "GALA/USDT:USDT"}, {"btc_rho": 0.608, "change_24h": null, "hit": false, "hub": "HUB_PRIME", "momentum": -30.16, "pnl": 0.0, "short": "imx", "symbol": "IMX/USDT:USDT"}]}</script>
+<script type="application/json" id="d-change">[-74.0, -12.88, -6.3, -5.97, -9.39, -6.82, -7.07]</script>
+<script type="application/json" id="d-cfg">{"impliedMultiple": 4.2, "lossShare": 64.7, "medianReturn": -1.5, "pUp": 0.0, "predicted": "DOWN", "stop": 1.5, "strike": 3.0, "tailMass": 23.53, "winRate": 35.29}</script>
+<script>
+/* futures-scan dashboard — all values come from the embedded JSON payloads. */
+(function () {
+  'use strict';
+  var INK = '#14130f', SOFT = '#6b6860', FAINT = '#9a978c', LINE = '#d9d5cc',
+      GREEN = '#2c7a4b', RED = '#bf2f38', GRAY = '#8f8c80', CARD = '#fbfaf7', ALT = '#f2efe7';
+
+  function J(id) {
+    var el = document.getElementById(id);
+    if (!el) return null;
+    try { return JSON.parse(el.textContent); } catch (e) { return null; }
+  }
+  var CURVE = J('d-curve') || [], TRADES = J('d-trades') || [], WINS = J('d-wins') || [],
+      RIDGE = J('d-ridge') || {}, GRAPH = J('d-graph') || { nodes: [], edges: [], hubs: [] },
+      CHANGE = J('d-change') || [], CFG = J('d-cfg') || {};
+
+  var PIXEL = "'Silkscreen', monospace", MONO = "'IBM Plex Mono', monospace";
+
+  /* ------------------------------------------------------------------ clock */
+  setInterval(function () {
+    var el = document.getElementById('utc-clock');
+    if (el) el.textContent = new Date().toUTCString().split(' ')[4] + ' UTC';
+  }, 1000);
+
+  /* -------------------------------------------------- cumulative pnl curve */
+  (function () {
+    var svg = document.getElementById('pnl-curve');
+    if (!svg || !CURVE.length) return;
+    var W = 320, H = 132, pad = 6;
+    var data = CURVE.length === 1 ? [0, CURVE[0]] : [0].concat(CURVE);
+    var min = Math.min.apply(null, data), max = Math.max.apply(null, data);
+    var span = (max - min) || 1;
+    var xs = function (i) { return pad + (i / (data.length - 1)) * (W - pad * 2); };
+    var ys = function (v) { return H - pad - ((v - min) / span) * (H - pad * 2 - 10); };
+    var line = '', area = 'M ' + xs(0).toFixed(1) + ' ' + (H - pad).toFixed(1) + ' L ' + xs(0).toFixed(1) + ' ' + ys(data[0]).toFixed(1);
+    for (var i = 0; i < data.length; i++) {
+      var x = xs(i).toFixed(1), y = ys(data[i]).toFixed(1);
+      if (i === 0) { line = 'M ' + x + ' ' + y; }
+      else {
+        var px = xs(i - 1).toFixed(1);
+        line += ' L ' + x + ' ' + ys(data[i - 1]).toFixed(1) + ' L ' + x + ' ' + y;
+        area += ' L ' + x + ' ' + ys(data[i - 1]).toFixed(1) + ' L ' + x + ' ' + y;
+      }
+    }
+    area += ' L ' + xs(data.length - 1).toFixed(1) + ' ' + (H - pad).toFixed(1) + ' Z';
+    var last = data[data.length - 1];
+    var col = last >= 0 ? GREEN : RED;
+    var zeroY = ys(0).toFixed(1);
+    svg.innerHTML =
+      '<line x1="' + pad + '" y1="' + zeroY + '" x2="' + (W - pad) + '" y2="' + zeroY + '" stroke="' + LINE + '" stroke-dasharray="2,3"/>' +
+      '<path d="' + area + '" fill="' + (last >= 0 ? 'rgba(44,122,75,0.16)' : 'rgba(191,47,56,0.14)') + '"/>' +
+      '<path d="' + line + '" fill="none" stroke="' + col + '" stroke-width="1.4" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + xs(data.length - 1).toFixed(1) + '" cy="' + ys(last).toFixed(1) + '" r="2.4" fill="' + col + '"/>';
+  })();
+
+  /* -------------------------------------------------------- top-wins pager */
+  (function () {
+    if (!WINS.length) return;
+    var dots = document.getElementById('pager-dots');
+    var idx = 0;
+    function set(html, id) { var el = document.getElementById(id); if (el) el.innerHTML = html; }
+    function render() {
+      var w = WINS[idx];
+      set('&times;' + w.multiple.toFixed(3), 'win-mult');
+      set('+' + w.pnl_pct.toFixed(2) + '%', 'win-plus');
+      set(w.entry_time_short + ' · ' + w.short + ' · ' + w.exit_reason.toUpperCase() + ' · ' + w.bars_held + ' BARS', 'win-meta');
+      set(Number(w.entry_price).toPrecision(6).replace(/\.?0+$/, ''), 'win-entry');
+      set(Number(w.exit_price).toPrecision(6).replace(/\.?0+$/, ''), 'win-exit');
+      var pnl = document.getElementById('win-pnl');
+      if (pnl) { pnl.textContent = (w.pnl_usdt >= 0 ? '+' : '') + w.pnl_usdt.toFixed(2) + ' USDT'; pnl.className = w.pnl_usdt >= 0 ? 'pos' : 'neg'; }
+      var pager = document.getElementById('wins-pager');
+      if (pager) pager.textContent = (idx + 1) + ' / ' + WINS.length;
+      if (dots) dots.innerHTML = WINS.map(function (_, i) { return '<i class="' + (i === idx ? 'on' : '') + '" data-i="' + i + '"></i>'; }).join('');
+    }
+    render();
+    if (dots) dots.addEventListener('click', function (e) {
+      var i = e.target && e.target.getAttribute('data-i');
+      if (i !== null && i !== undefined) { idx = +i; render(); }
+    });
+    if (WINS.length > 1) setInterval(function () { idx = (idx + 1) % WINS.length; render(); }, 3800);
+  })();
+
+  /* ---------------------------------------------------- probability lattice */
+  (function () {
+    var cv = document.getElementById('lattice');
+    if (!cv || !TRADES.length) return;
+    var ctx = cv.getContext('2d');
+    var ROWS = 6, TIERS = 9, BINS = 7, H = 348;
+    var W = 800, SP = 40, cx = 0, topY = 58, botY = 196, histTop = 214, histBot = 300;
+    var counts = new Array(BINS).fill(0), greens = new Array(BINS).fill(0);
+    var balls = [], order = [], cursor = 0, landed = 0, wins = 0, conv = [];
+
+    function binFor(r) {
+      var b = Math.sign(r) * Math.round(Math.abs(r));
+      return Math.max(-3, Math.min(3, b));
+    }
+    function resize() {
+      var rect = cv.parentNode.getBoundingClientRect();
+      W = Math.max(640, Math.floor(rect.width));
+      SP = Math.min(104, Math.max(40, (W - 160) / (BINS + 1.1)));
+      cx = W / 2;
+      var dpr = window.devicePixelRatio || 1;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function reset() {
+      counts.fill(0); greens.fill(0); balls = []; cursor = 0; landed = 0; wins = 0; conv = [];
+      order = TRADES.slice();
+    }
+    function spawn() {
+      if (cursor >= order.length) return;
+      var t = order[cursor++];
+      var target = binFor(t.pnl_pct);
+      var rights = target + 3;
+      var moves = [];
+      for (var i = 0; i < ROWS; i++) moves.push(i < rights ? 1 : -1);
+      for (var i = moves.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0; var tmp = moves[i]; moves[i] = moves[j]; moves[j] = tmp; }
+      // spread the 6 real decisions over 9 peg tiers (3 pass-through tiers)
+      var pad = [2, 5, 8], full = [], mi = 0;
+      for (var i = 0; i < TIERS; i++) full.push(pad.indexOf(i) >= 0 ? 0 : moves[mi++]);
+      moves = full;
+      balls.push({ t: t, bin: target, moves: moves, p: 0, trail: [], rot: Math.random() * 6, done: false });
+    }
+    function ballPos(b, p) {
+      var rowH = (botY - topY) / TIERS;
+      var stage = Math.min(TIERS, Math.floor(p));
+      var frac = p - stage;
+      var off = 0;
+      for (var i = 0; i < Math.min(stage, TIERS); i++) off += b.moves[i];
+      var x = cx + off * SP / 2;
+      var y = topY + Math.min(p, TIERS) * rowH;
+      if (stage < TIERS) x += b.moves[stage] * (SP / 2) * frac;
+      if (p > TIERS) y = botY + (p - TIERS) * rowH * 1.35;
+      return { x: x, y: y };
+    }
+    function drawStatic() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = ALT; ctx.fillRect(0, 0, cx - SP / 2, H - 26);
+      ctx.fillStyle = 'rgba(44,122,75,0.07)'; ctx.fillRect(cx - SP / 2, 0, W - cx + SP / 2, H - 26);
+      // funnel
+      ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 16, 16); ctx.lineTo(cx + 16, 16); ctx.lineTo(cx + 3, 40); ctx.lineTo(cx + 3, 50);
+      ctx.lineTo(cx - 3, 50); ctx.lineTo(cx - 3, 40); ctx.closePath(); ctx.stroke();
+      // breakeven line
+      ctx.save();
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = SOFT;
+      ctx.beginPath(); ctx.moveTo(cx - SP / 2, 8); ctx.lineTo(cx - SP / 2, histBot + 4); ctx.stroke();
+      ctx.restore();
+      // labels
+      ctx.font = '9px ' + MONO; ctx.textAlign = 'left';
+      ctx.fillStyle = FAINT; ctx.fillText('LOSS · ' + (CFG.lossShare || 0).toFixed(1) + '%', 14, 22);
+      ctx.fillStyle = GREEN; ctx.textAlign = 'right'; ctx.fillText('PROFIT · ' + (CFG.winRate || 0).toFixed(1) + '%', W - 14, 22);
+      // breakeven box
+      ctx.textAlign = 'center';
+      var bx = cx - SP / 2, tw = 62;
+      ctx.fillStyle = CARD; ctx.fillRect(bx - tw / 2, 10, tw, 13);
+      ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.strokeRect(bx - tw / 2, 10, tw, 13);
+      ctx.fillStyle = INK; ctx.font = '8px ' + MONO; ctx.fillText('BREAKEVEN', bx, 19.5);
+      // pegs
+      var rowH = (botY - topY) / TIERS;
+      ctx.fillStyle = LINE;
+      for (var r = 0; r < TIERS; r++) {
+        var n = Math.min(r + 2, BINS + 2), y = topY + (r + 0.5) * rowH;
+        for (var c = 0; c < n; c++) {
+          var x = cx + (c - (n - 1) / 2) * SP;
+          ctx.beginPath(); ctx.arc(x, y, 2.1, 0, 6.2832); ctx.fill();
+        }
+      }
+      // quincunx caption
+      ctx.textAlign = 'left'; ctx.fillStyle = FAINT; ctx.font = '8px ' + MONO;
+      ctx.fillText('QUINCUNX · ' + TIERS + ' TIERS · BIN 1.00%', 14, 40);
+    }
+    function drawHist() {
+      var max = Math.max(1, Math.max.apply(null, counts));
+      for (var i = 0; i < BINS; i++) {
+        var bin = i - 3;
+        var w = SP * 0.78;
+        var x = cx + bin * SP - w / 2;
+        var h = (counts[i] / max) * (histBot - histTop);
+        var y = histBot - h;
+        ctx.fillStyle = bin > 0 ? 'rgba(44,122,75,0.75)' : (bin === 0 ? 'rgba(143,140,128,0.55)' : 'rgba(143,140,128,0.7)');
+        if (h > 0.5) ctx.fillRect(x, y, w, h);
+        ctx.font = '8px ' + MONO; ctx.textAlign = 'center';
+        if (counts[i]) { ctx.fillStyle = SOFT; ctx.fillText(String(counts[i]), x + w / 2, y - 3); }
+        ctx.fillStyle = FAINT;
+        ctx.fillText((bin > 0 ? '+' : '') + bin, x + w / 2, histBot + 11);
+      }
+      ctx.strokeStyle = LINE; ctx.beginPath();
+      ctx.moveTo(cx - 3.6 * SP, histBot + 0.5); ctx.lineTo(cx + 3.6 * SP, histBot + 0.5); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.fillStyle = FAINT; ctx.font = '8px ' + MONO;
+      ctx.fillText('TRADE RETURN BIN (%)', cx - 3.6 * SP, histBot + 24);
+    }
+    function drawConv() {
+      if (conv.length < 2) return;
+      var w = 150, h = 42, x0 = W - w - 14, y0 = 34;
+      ctx.fillStyle = CARD; ctx.fillRect(x0, y0, w, h);
+      ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+      var lo = 0, hi = 100;
+      ctx.beginPath();
+      for (var i = 0; i < conv.length; i++) {
+        var x = x0 + 4 + (i / (conv.length - 1)) * (w - 40);
+        var y = y0 + h - 6 - ((conv[i] - lo) / (hi - lo)) * (h - 12);
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.strokeStyle = INK; ctx.lineWidth = 1.1; ctx.stroke();
+      ctx.save(); ctx.setLineDash([2, 2]); ctx.strokeStyle = LINE;
+      var ty = y0 + h - 6 - ((CFG.winRate || 0) / 100) * (h - 12);
+      ctx.beginPath(); ctx.moveTo(x0 + 4, ty); ctx.lineTo(x0 + w - 34, ty); ctx.stroke(); ctx.restore();
+      ctx.font = '8px ' + MONO; ctx.textAlign = 'left'; ctx.fillStyle = GREEN;
+      ctx.fillText(conv[conv.length - 1].toFixed(1) + '%', x0 + w - 32, y0 + h / 2 + 3);
+      ctx.fillStyle = FAINT; ctx.fillText('RUNNING GREEN RATE', x0 + 4, y0 - 4);
+    }
+    function frame() {
+      drawStatic();
+      for (var i = balls.length - 1; i >= 0; i--) {
+        var b = balls[i];
+        b.p += 0.065;
+        b.rot += 0.16;
+        var pos = ballPos(b, b.p);
+        b.trail.push(pos);
+        if (b.trail.length > 14) b.trail.shift();
+        for (var k = 0; k < b.trail.length; k++) {
+          var a = (k / b.trail.length) * 0.28;
+          ctx.fillStyle = 'rgba(20,19,15,' + a.toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(b.trail[k].x, b.trail[k].y, 1.3, 0, 6.2832); ctx.fill();
+        }
+        ctx.save();
+        ctx.translate(pos.x, pos.y); ctx.rotate(b.rot);
+        ctx.fillStyle = INK; ctx.fillRect(-2.1, -2.1, 4.2, 4.2);
+        ctx.restore();
+        if (pos.y > histBot - 6) {
+          var bi = b.bin + 3;
+          counts[bi]++; if (b.t.win) { greens[bi]++; wins++; }
+          landed++;
+          conv.push(100 * wins / landed);
+          if (conv.length > 120) conv.shift();
+          balls.splice(i, 1);
+        }
+      }
+      drawHist();
+      drawConv();
+      requestAnimationFrame(frame);
+    }
+    resize(); reset();
+    window.addEventListener('resize', function () { resize(); });
+    setInterval(function () {
+      if (cursor >= order.length && balls.length === 0) { reset(); return; }
+      if (balls.length > 26) return;
+      spawn();
+    }, 130);
+    requestAnimationFrame(frame);
+  })();
+
+  /* ------------------------------------------------------------ tail ridge */
+  (function () {
+    var svg = document.getElementById('ridge');
+    if (!svg) return;
+    var syms = Object.keys(RIDGE);
+    if (!syms.length) return;
+    var all = [];
+    syms.forEach(function (s) { all = all.concat(RIDGE[s]); });
+    var mean = all.reduce(function (a, b) { return a + b; }, 0) / all.length;
+    var sd = Math.sqrt(all.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / Math.max(1, all.length - 1)) || 1;
+    var lo = mean - 3.6 * sd, hi = mean + 3.6 * sd;
+    var strike = CFG.strike || 3;
+    if (strike > hi) hi = strike + 0.4 * sd;
+
+    var W = 1080, H = 460, L = 132, R = 92, TOP = 46, BOT = 74;
+    var plotW = W - L - R;
+    // sort: biggest tail share at the back
+    syms.sort(function (a, b) {
+      var f = function (v) { return RIDGE[v].filter(function (x) { return x >= strike - 1e-9; }).length / RIDGE[v].length; };
+      return f(b) - f(a);
+    });
+    var rows = syms.length + 1; // + aggregate ridge in front
+    var dx = Math.min(13, (plotW * 0.26) / Math.max(1, rows));
+    var dy = Math.min(19, (H - TOP - BOT) * 0.70 / Math.max(1, rows));
+    var baseY = H - BOT;
+    var ridgeW = plotW - dx * rows;
+    var amp = Math.min(56, dy * 3.6);
+
+    function xOf(v, i) { return L + dx * i + ((v - lo) / (hi - lo)) * ridgeW; }
+    function yBase(i) { return baseY - dy * i; }
+
+    function density(vals) {
+      var n = 96, out = [], bw = Math.max(0.28 * sd, 0.16);
+      for (var i = 0; i < n; i++) {
+        var x = lo + (i / (n - 1)) * (hi - lo), s = 0;
+        for (var k = 0; k < vals.length; k++) {
+          var z = (x - vals[k]) / bw;
+          s += Math.exp(-0.5 * z * z);
+        }
+        out.push({ x: x, y: s / (vals.length * bw) });
+      }
+      var mx = out.reduce(function (a, p) { return Math.max(a, p.y); }, 0) || 1;
+      out.forEach(function (p) { p.y /= mx; });
+      return out;
+    }
+
+    var parts = [];
+    // back to front: index rows-1 (farthest) .. 0 (front). aggregate = index 0
+    var series = syms.map(function (s) { return { name: s.split('/')[0].toLowerCase(), vals: RIDGE[s], agg: false }; });
+    series.push({ name: 'all trades', vals: all, agg: true });
+    // draw farthest first
+    for (var si = series.length - 1; si >= 0; si--) {
+      var i = si; // stack index: 0 = front (aggregate is last -> index series.length-1?)
+      var item = series[si];
+      var depth = item.agg ? 0 : (si + 1);
+      var d = density(item.vals);
+      var by = yBase(depth), a = item.agg ? amp * 1.25 : amp;
+      var pts = d.map(function (p) { return [xOf(p.x, depth), by - p.y * a]; });
+      var path = 'M ' + xOf(lo, depth).toFixed(1) + ' ' + by.toFixed(1);
+      pts.forEach(function (p) { path += ' L ' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+      path += ' L ' + xOf(hi, depth).toFixed(1) + ' ' + by.toFixed(1) + ' Z';
+      parts.push({ z: depth, html:
+        '<path d="' + path + '" fill="' + (item.agg ? 'rgba(20,19,15,0.18)' : 'rgba(143,140,128,0.16)') + '" stroke="' + INK + '" stroke-width="' + (item.agg ? 1.1 : 0.6) + '" stroke-opacity="' + (item.agg ? 0.85 : 0.55) + '"/>' });
+      // red tail beyond strike
+      var tail = pts.filter(function (p) { return p[0] >= xOf(strike, depth); });
+      if (tail.length > 1) {
+        var tp = 'M ' + tail[0][0].toFixed(1) + ' ' + by.toFixed(1);
+        tail.forEach(function (p) { tp += ' L ' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+        tp += ' L ' + tail[tail.length - 1][0].toFixed(1) + ' ' + by.toFixed(1) + ' Z';
+        parts.push({ z: depth, html: '<path d="' + tp + '" fill="rgba(191,47,56,0.45)" stroke="' + RED + '" stroke-width="0.6"/>' });
+      }
+      parts.push({ z: depth, html: '<text class="axis-txt" x="' + (xOf(lo, depth) - 6).toFixed(1) + '" y="' + (by - 1).toFixed(1) + '" text-anchor="end">' + item.name + '</text>' });
+    }
+    parts.sort(function (a, b) { return b.z - a.z; });
+    var html = parts.map(function (p) { return p.html; }).join('');
+
+    // strike diagonal
+    var sx0 = xOf(strike, series.length - 1 + 1), sy0 = yBase(series.length) - amp - 8;
+    var sx1 = xOf(strike, 0), sy1 = yBase(0) + 8;
+    html += '<line x1="' + sx0.toFixed(1) + '" y1="' + sy0.toFixed(1) + '" x2="' + sx1.toFixed(1) + '" y2="' + sy1.toFixed(1) + '" stroke="' + INK + '" stroke-dasharray="5,4" stroke-width="1"/>';
+    html += '<g><rect x="' + (sx0 - 34).toFixed(1) + '" y="' + (sy0 - 15).toFixed(1) + '" width="74" height="14" fill="' + CARD + '" stroke="' + INK + '" stroke-width="0.7"/>' +
+      '<text class="boxlabel" x="' + (sx0 + 3).toFixed(1) + '" y="' + (sy0 - 5).toFixed(1) + '" text-anchor="middle" fill="' + INK + '">STRIKE +' + strike.toFixed(0) + '%</text></g>';
+
+    // annotation box
+    var im = CFG.impliedMultiple ? ('x' + CFG.impliedMultiple.toFixed(1)) : 'n/a';
+    var ax = L + 6, ay = TOP + 4;
+    html += '<g><rect x="' + ax + '" y="' + ay + '" width="164" height="46" fill="' + CARD + '" stroke="' + INK + '" stroke-width="0.7"/>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 15) + '" fill="' + INK + '">P(&ge;STRIKE) ' + (CFG.tailMass || 0).toFixed(2) + '%</text>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 28) + '" fill="' + RED + '">IMPLIED ' + im + '</text>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 41) + '" fill="' + FAINT + '">MEDIAN ' + (CFG.medianReturn || 0).toFixed(2) + '%</text></g>';
+
+    // axis ticks in sigma
+    for (var t = -3; t <= 3; t++) {
+      var v = mean + t * sd;
+      var x = xOf(v, 0);
+      html += '<line x1="' + x.toFixed(1) + '" y1="' + (baseY + 4) + '" x2="' + x.toFixed(1) + '" y2="' + (baseY + 9) + '" stroke="' + LINE + '"/>';
+      html += '<text class="axis-txt" x="' + x.toFixed(1) + '" y="' + (baseY + 20) + '" text-anchor="middle">' + (t > 0 ? '+' : '') + t + 'σ</text>';
+    }
+    html += '<line x1="' + xOf(lo, 0).toFixed(1) + '" y1="' + (baseY + 4) + '" x2="' + xOf(hi, 0).toFixed(1) + '" y2="' + (baseY + 4) + '" stroke="' + LINE + '"/>';
+    html += '<text class="axis-txt" x="' + (L - 60) + '" y="' + (TOP - 20) + '">PRICE-TARGET DENSITY · ' + syms.length + ' SYMBOLS</text>';
+    html += '<text class="axis-txt" x="' + (W - 8) + '" y="' + (TOP - 20) + '" text-anchor="end" fill="' + RED + '">TAIL ZONE · PAYOUT ' + im + '</text>';
+    svg.innerHTML = html;
+  })();
+
+  /* ------------------------------------------------------ relationship graph */
+  (function () {
+    var el = document.getElementById('graph');
+    if (!el || typeof d3 === 'undefined' || !GRAPH.nodes.length) return;
+    var W = 960, H = 470;
+    var hubMeta = { BEAR_CLUSTER: { x: 0.20, y: 0.42, c: RED }, HUB_PRIME: { x: 0.50, y: 0.72, c: INK }, CATALYST_RING: { x: 0.78, y: 0.44, c: GRAY } };
+    var hubs = GRAPH.hubs.map(function (h) {
+      var m = hubMeta[h.id] || { x: 0.5, y: 0.5, c: GRAY };
+      return { id: h.id, label: h.label, hub: true, color: m.c, count: h.count, fx: W * m.x, fy: H * m.y };
+    });
+    var nodes = GRAPH.nodes.map(function (n) {
+      return {
+        id: n.symbol, label: n.short, hub: false, hit: n.hit,
+        color: (n.momentum === null ? GRAY : (n.momentum > 0 ? GREEN : RED)),
+        parent: n.hub, r: n.hit ? 4.6 : 3.1
+      };
+    });
+    var all = hubs.concat(nodes);
+    var byId = new Map(all.map(function (n) { return [n.id, n]; }));
+    var links = [];
+    nodes.forEach(function (n) { if (byId.has(n.parent)) links.push({ source: n.id, target: n.parent, w: 1, spoke: true }); });
+    var drawn = GRAPH.edges.slice().sort(function (a, b) { return Math.abs(b.rho) - Math.abs(a.rho); }).slice(0, 60);
+    drawn.forEach(function (e) {
+      if (byId.has(e.a) && byId.has(e.b)) links.push({ source: e.a, target: e.b, w: Math.abs(e.rho), spoke: false });
+    });
+
+    var sim = d3.forceSimulation(all)
+      .force('link', d3.forceLink(links).id(function (d) { return d.id; })
+        .distance(function (l) { return l.spoke ? 68 : 130; })
+        .strength(function (l) { return l.spoke ? 0.95 : 0.02; }))
+      .force('charge', d3.forceManyBody().strength(function (d) { return d.hub ? -900 : -58; }))
+      .force('collide', d3.forceCollide(function (d) { return (d.hub ? 26 : d.r + 11); }))
+      .force('x', d3.forceX(W / 2).strength(0.02))
+      .force('y', d3.forceY(H / 2).strength(0.03))
+      .alphaDecay(0.02)
+      .stop();
+
+    var svg = d3.select(el);
+    var gLink = svg.append('g'), gPath = svg.append('g'), gNode = svg.append('g');
+
+    var linkSel = gLink.selectAll('line').data(links).enter().append('line')
+      .attr('stroke', function (d) { return d.spoke ? '#cfcbc0' : '#b9b5a9'; })
+      .attr('stroke-width', function (d) { return d.spoke ? 0.6 : 0.5 + d.w; })
+      .attr('stroke-opacity', function (d) { return d.spoke ? 0.7 : 0.35; });
+
+    var nodeSel = gNode.selectAll('g').data(all).enter().append('g');
+    nodeSel.append('circle')
+      .attr('r', function (d) { return d.hub ? 9 + Math.min(13, Math.sqrt(d.count) * 3) : d.r; })
+      .attr('fill', function (d) { return d.hub ? d.color : d.color; })
+      .attr('opacity', function (d) { return d.hub ? 1 : 0.85; });
+    var labelled = nodeSel;
+    labelled.append('rect').attr('class', 'nl-bg').attr('height', 11).attr('rx', 1)
+      .attr('fill', CARD).attr('fill-opacity', function (d) { return d.hub || d.hit ? 1 : 0.65; })
+      .attr('stroke', function (d) { return d.hub ? INK : LINE; })
+      .attr('stroke-opacity', function (d) { return d.hub || d.hit ? 1 : 0.5; }).attr('stroke-width', 0.6);
+    labelled.append('text').attr('class', 'nl-tx')
+      .attr('font-size', function (d) { return d.hub ? 8 : 6; })
+      .attr('font-family', MONO)
+      .attr('fill', function (d) { return d.hub || d.hit ? SOFT : FAINT; })
+      .text(function (d) { return d.hub ? d.label : d.label; });
+
+    var ticks = 0, t0 = performance.now(), running = true;
+    function paint() {
+      linkSel.attr('x1', function (d) { return d.source.x; }).attr('y1', function (d) { return d.source.y; })
+        .attr('x2', function (d) { return d.target.x; }).attr('y2', function (d) { return d.target.y; });
+      nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+      labelled.select('text.nl-tx')
+        .attr('x', function (d) { return d.hub ? 0 : 7; })
+        .attr('y', function (d) { return d.hub ? 3.5 : 3; })
+        .attr('text-anchor', function (d) { return d.hub ? 'middle' : 'start'; });
+      labelled.select('rect.nl-bg').each(function (d) {
+        var tx = this.parentNode.querySelector('text.nl-tx');
+        var w = 8;
+        try { w = tx.getComputedTextLength() + 6; } catch (e) { w = d.label.length * 5 + 6; }
+        d3.select(this)
+          .attr('width', w)
+          .attr('x', d.hub ? -w / 2 : 5)
+          .attr('y', d.hub ? -5.5 : -5);
+      });
+      // median path through the hubs
+      var hp = hubs.slice().sort(function (a, b) { return a.x - b.x; });
+      if (hp.length === 3) {
+        var d0 = 'M ' + hp[0].x + ' ' + hp[0].y +
+          ' Q ' + ((hp[0].x + hp[1].x) / 2) + ' ' + (Math.min(hp[0].y, hp[1].y) - 60) + ' ' + hp[1].x + ' ' + hp[1].y +
+          ' Q ' + ((hp[1].x + hp[2].x) / 2) + ' ' + (Math.min(hp[1].y, hp[2].y) - 60) + ' ' + hp[2].x + ' ' + hp[2].y;
+        var p = gPath.selectAll('path.median').data([d0]);
+        p.enter().append('path').attr('class', 'median').merge(p)
+          .attr('d', function (d) { return d; })
+          .attr('fill', 'none').attr('stroke', INK).attr('stroke-width', 2)
+          .attr('stroke-dasharray', '7,5').attr('opacity', 0.75);
+        var lx = hp[2].x + 26, ly = hp[2].y - 34;
+        var g = gPath.selectAll('g.endlab').data([1]);
+        var ge = g.enter().append('g').attr('class', 'endlab');
+        ge.append('line'); ge.append('rect'); ge.append('text');
+        var gm = gPath.select('g.endlab');
+        gm.select('line').attr('x1', hp[2].x).attr('y1', hp[2].y).attr('x2', lx - 4).attr('y2', ly + 7)
+          .attr('stroke', INK).attr('stroke-width', 1.2);
+        gm.select('rect').attr('x', lx).attr('y', ly).attr('width', 62).attr('height', 15)
+          .attr('fill', CARD).attr('stroke', INK).attr('stroke-width', 0.8);
+        gm.select('text').attr('x', lx + 31).attr('y', ly + 10.5).attr('text-anchor', 'middle')
+          .attr('font-size', 8).attr('font-family', MONO)
+          .attr('fill', CFG.predicted === 'UP' ? GREEN : RED)
+          .text((CFG.predicted === 'UP' ? '▲ ' : '▼ ') + (CFG.pUp || 0).toFixed(0) + '% UP');
+      }
+    }
+    var counters = document.getElementById('graph-counters');
+    var iterSec = document.getElementById('iter-sec');
+    var convBar = document.getElementById('conv-bar'), convPct = document.getElementById('conv-pct');
+    function step() {
+      if (!running) return;
+      for (var i = 0; i < 3; i++) { sim.tick(); ticks++; }
+      paint();
+      var a = sim.alpha(), progress = Math.min(1, Math.max(0, (1 - (a - 0.001) / 1)));
+      if (convBar) convBar.style.width = (progress * 100).toFixed(0) + '%';
+      if (convPct) convPct.textContent = (progress * 100).toFixed(0) + '%';
+      if (counters) counters.textContent = 'nodes ' + all.length + ' · edges ' + GRAPH.edges.length +
+        ' · signal ' + ((GRAPH.edges.length ? d3.mean(GRAPH.edges, function (e) { return Math.abs(e.rho); }) * 100 : 0)).toFixed(1) + '% · iter ' + ticks;
+      var dt = (performance.now() - t0) / 1000;
+      if (iterSec) iterSec.textContent = dt > 0 ? Math.round(ticks / dt).toLocaleString() : '—';
+      if (a < 0.02 || ticks > 900) { running = false; if (convBar) convBar.style.width = '100%'; if (convPct) convPct.textContent = '100%'; return; }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  })();
+
+  /* ------------------------------------------------------- 24h change hist */
+  (function () {
+    var c = document.getElementById('mini-hist');
+    if (!c || !CHANGE.length) return;
+    var min = Math.min.apply(null, CHANGE), max = Math.max.apply(null, CHANGE);
+    var n = 12, range = (max - min) || 1, buckets = new Array(n).fill(0);
+    CHANGE.forEach(function (v) { buckets[Math.min(n - 1, Math.floor(((v - min) / range) * n))]++; });
+    var mx = Math.max.apply(null, buckets) || 1;
+    c.innerHTML = buckets.map(function (k, i) {
+      var mid = min + ((i + 0.5) / n) * range;
+      return '<div class="bar ' + (mid >= 0 ? 'pos' : 'neg') + '" style="height:' + Math.max(2, (k / mx) * 54) + 'px" title="' + mid.toFixed(1) + '% · ' + k + '"></div>';
+    }).join('');
+  })();
+})();
+</script>
+</body>
+</html>
