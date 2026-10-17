@@ -1,0 +1,1840 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>futures-scan · BINANCEUSDM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<style>
+:root {
+  --bg: #f3f1eb;
+  --bg-dot: #dedbd0;
+  --card: #fbfaf7;
+  --card-alt: #f7f5ef;
+  --ink: #14130f;
+  --ink-soft: #6b6860;
+  --ink-faint: #9a978c;
+  --line: #d9d5cc;
+  --line-soft: #e8e5dc;
+  --green: #2c7a4b;
+  --green-soft: rgba(44, 122, 75, 0.16);
+  --red: #bf2f38;
+  --red-soft: rgba(191, 47, 56, 0.16);
+  --gray: #8f8c80;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { border-bottom-color: var(--ink); }
+.wrap { max-width: 1680px; margin: 0 auto; padding: 14px 18px 46px; }
+
+/* ---------- primitives ---------- */
+.pixel { font-family: 'Silkscreen', 'IBM Plex Mono', monospace; letter-spacing: 0.01em; }
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.label-ink { color: var(--ink-soft); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+  position: relative;
+}
+.card.flush { padding: 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.chip b { font-weight: 600; color: var(--ink); letter-spacing: 0.06em; }
+.chip.live { color: var(--green); border-color: rgba(44,122,75,0.45); background: var(--green-soft); }
+.chip.accent { border-color: var(--red); color: var(--red); }
+.chip.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--gray); }
+.muted { color: var(--ink-faint); }
+
+/* ---------- header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  padding: 8px 12px; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.header .brand { display: flex; align-items: center; gap: 10px; }
+.header .logo {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--card-alt);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.header .title { font-size: 14px; letter-spacing: 0.06em; }
+.header .title .accent { color: var(--red); }
+.header .meta-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- section frame ---------- */
+.section {
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  margin-top: 10px; overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+.section-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 7px;
+}
+.section-head h2 .bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.section-head h2 .sub { color: var(--ink-faint); font-weight: 400; }
+.section-head .hint {
+  color: var(--ink-faint); font-size: 9px; letter-spacing: 0.1em; text-transform: lowercase;
+}
+.section-body { display: grid; grid-template-columns: 196px 1fr; }
+.section-body.rev { grid-template-columns: 1fr 196px; }
+.section-body > .pane { padding: 10px 12px; min-width: 0; }
+.section-body > .stat-col { border-right: 1px solid var(--line-soft); }
+.section-body.rev > .stat-col { border-right: none; border-left: 1px solid var(--line-soft); }
+
+/* ---------- dotted-leader stat column ---------- */
+.stat-col { padding: 10px 12px; display: flex; flex-direction: column; }
+.stat-col .col-title {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 7px;
+}
+.srow {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 10.5px; line-height: 1.85; color: var(--ink-soft);
+}
+.srow .k { text-transform: lowercase; letter-spacing: 0.03em; white-space: nowrap; }
+.srow .lead {
+  flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); min-width: 8px;
+}
+.srow .v { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.srow.rule { border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 5px; }
+.stat-note {
+  margin-top: auto; padding-top: 12px; font-size: 9px; line-height: 1.6;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+.hero-left { display: grid; grid-template-columns: 196px 1fr; }
+.hero-main { padding: 10px 14px; min-width: 0; }
+.hero-num { font-size: 58px; line-height: 1.05; letter-spacing: -0.01em; }
+.hero-unit { font-size: 20px; color: var(--ink-faint); }
+.chiprow { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.tile {
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 6px 8px;
+  background: var(--card-alt);
+}
+.tile.sel { border-color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tile .sym { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.tile .val { font-size: 13px; margin-top: 1px; }
+.tile .meta { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.05em; }
+.hero-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; font-size: 9px; color: var(--ink-faint); letter-spacing: 0.08em;
+}
+
+/* ---------- top wins ---------- */
+.wins { display: flex; flex-direction: column; height: 100%; }
+.wins-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.wins-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 10px; }
+.win-mult { font-size: 40px; line-height: 1; }
+.win-plus { font-size: 14px; color: var(--ink-faint); vertical-align: super; }
+.win-flow { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+.win-flow .arrow { color: var(--ink-faint); }
+.pager { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.pager i { width: 14px; height: 3px; background: var(--line); border-radius: 2px; cursor: pointer; }
+.pager i.on { background: var(--ink); }
+
+/* ---------- viz ---------- */
+svg { display: block; width: 100%; height: auto; }
+.axis-txt { font-size: 8px; fill: var(--ink-faint); letter-spacing: 0.08em; }
+.boxlabel { font-size: 8px; letter-spacing: 0.1em; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 11px; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px;
+  color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--line);
+}
+tbody tr:hover td { background: var(--card-alt); }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- footer ---------- */
+.statusbar {
+  margin-top: 10px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--card);
+  font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.statusbar b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---------- controls ---------- */
+button.ctrl {
+  font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; color: var(--ink-soft);
+}
+button.ctrl:hover { background: var(--card-alt); color: var(--ink); }
+button.ctrl.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* ---------- progress ---------- */
+.bar-track { height: 6px; background: var(--line-soft); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.bar-fill { height: 100%; background: var(--ink); }
+
+@media (max-width: 1400px) {
+  .hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .section-body, .section-body.rev, .hero-left { grid-template-columns: 1fr; }
+  .section-body > .stat-col, .section-body.rev > .stat-col { border: none; border-bottom: 1px solid var(--line-soft); }
+  .wins-body { grid-template-columns: 1fr; }
+  .hero-num { font-size: 44px; }
+}
+.graph-body { display: grid; grid-template-columns: 178px 1fr 186px; }
+.graph-body > .side { padding: 10px 12px; min-width: 0; }
+.graph-body > .side.l { border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; }
+.graph-body > .side.r { border-left: 1px solid var(--line-soft); }
+.legend-row { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--ink-soft); line-height: 1.8; }
+.legend-row .sw { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.mini-hist { display: flex; align-items: flex-end; gap: 2px; height: 54px; margin-top: 6px; }
+.mini-hist .bar { flex: 1; background: var(--gray); border-radius: 1px 1px 0 0; min-height: 2px; }
+.mini-hist .bar.pos { background: var(--green); }
+.mini-hist .bar.neg { background: var(--red); }
+.bigstat { display: flex; align-items: baseline; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted var(--line); }
+.bigstat .k { font-size: 9px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint); }
+.bigstat .v { font-size: 15px; }
+@media (max-width: 1100px) { .graph-body { grid-template-columns: 1fr; } .graph-body > .side.l, .graph-body > .side.r { border: none; border-bottom: 1px solid var(--line-soft); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  
+  <div class="header">
+    <div class="brand">
+      <div class="logo">◆</div>
+      <div>
+        <div class="label">FUTURES-SCAN · LIVE ON BINANCEUSDM · 1h</div>
+        <div class="title pixel">FUTURES-SCAN · <span class="accent">BINANCEUSDM</span></div>
+      </div>
+    </div>
+    <div class="meta-right">
+      <span class="chip live"><span class="dot"></span> LIVE · 1H</span>
+      <span class="chip">ROUND <b>#1</b></span>
+      <span class="chip" id="utc-clock">23:06:01 UTC</span>
+    </div>
+  </div>
+
+  
+  <div class="hero">
+    <div class="card flush">
+      <div class="hero-left">
+        <div class="stat-col">
+          <div class="col-title">session ledger</div>
+          
+          <div class="srow"><span class="k">symbols scanned</span><span class="lead"></span><span class="v ">745</span></div>
+          
+          <div class="srow"><span class="k">scan hits</span><span class="lead"></span><span class="v ">59</span></div>
+          
+          <div class="srow"><span class="k">scan time</span><span class="lead"></span><span class="v ">44.6s</span></div>
+          
+          <div class="srow"><span class="k">median rsi</span><span class="lead"></span><span class="v ">26.2</span></div>
+          
+          <div class="srow"><span class="k">median vol x</span><span class="lead"></span><span class="v ">9.15</span></div>
+          
+          <div class="srow"><span class="k">median 24h</span><span class="lead"></span><span class="v neg">-2.04%</span></div>
+          
+          <div class="srow"><span class="k">trades</span><span class="lead"></span><span class="v ">529</span></div>
+          
+          <div class="srow"><span class="k">win rate</span><span class="lead"></span><span class="v ">27.6%</span></div>
+          
+          <div class="srow"><span class="k">ev / trade</span><span class="lead"></span><span class="v neg">-3.60</span></div>
+          
+          <div class="srow"><span class="k">sharpe</span><span class="lead"></span><span class="v ">-0.16</span></div>
+          
+          <div class="srow"><span class="k">max drawdown</span><span class="lead"></span><span class="v neg">-2,086.65</span></div>
+          
+          <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-1,905.19</span></div>
+          
+          <div class="stat-note">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average — the gate is the whole edge</div>
+        </div>
+        <div class="hero-main">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span class="label">FUTURES-SCAN · REALISED PNL</span>
+            <span class="chip accent">RSI MEAN-REVERT</span>
+            <span class="chip">59 HITS</span>
+          </div>
+          <div class="hero-num pixel neg" style="margin-top:6px;">
+            -1905.19<span class="hero-unit"> USDT</span>
+          </div>
+          <div class="chiprow">
+            <span class="chip">trades <b>529</b></span>
+            <span class="chip">win rate <b>27.6%</b></span>
+            <span class="chip">sharpe <b>-0.16</b></span>
+            <span class="chip">mdd <b>-2086.65</b></span>
+            <span class="chip">edge <b class="neg">-5.7pp</b></span>
+          </div>
+          
+          <div class="tiles">
+            
+            <div class="tile sel">
+              <div class="sym">IREN</div>
+              <div class="val pixel pos">+43.29</div>
+              <div class="meta">14 tr · 35.7% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">STO</div>
+              <div class="val pixel pos">+42.60</div>
+              <div class="meta">3 tr · 66.7% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">ZHIPU</div>
+              <div class="val pixel pos">+35.88</div>
+              <div class="meta">13 tr · 46.2% wr</div>
+            </div>
+            
+            <div class="tile ">
+              <div class="sym">INTC</div>
+              <div class="val pixel pos">+33.72</div>
+              <div class="meta">12 tr · 50.0% wr</div>
+            </div>
+            
+          </div>
+          
+          <div class="hero-foot">
+            <span>anon · binanceusdm · 1h · notional 1,000 usdt / trade</span>
+            <span class="chip live"><span class="dot"></span> LIVE · CACHED</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card flush">
+      <div class="wins">
+        <div class="wins-head">
+          <span class="label">★ TOP WINS · AAOI · BINANCEUSDM</span>
+          <span class="label" id="wins-pager">1 / 5</span>
+        </div>
+        
+        <div class="wins-body">
+          <div>
+            <div class="win-mult pixel pos"><span id="win-mult">&times;1.030</span><span class="win-plus" id="win-plus">+3.00%</span></div>
+            <div class="label" id="win-meta" style="margin-top:6px;">Sep 28 16:00 · AAOI · TP · 21 BARS</div>
+            <div class="win-flow">
+              <div>
+                <div class="label">ENTRY</div>
+                <div class="pixel" id="win-entry">95.19</div>
+              </div>
+              <div class="arrow">&rarr;</div>
+              <div>
+                <div class="label">EXIT</div>
+                <div class="pixel pos" id="win-exit">98.0457</div>
+              </div>
+            </div>
+            <div style="margin-top:8px;" class="pos" id="win-pnl">+29.20 USDT</div>
+          </div>
+          <div>
+            <div class="label" style="text-align:right;">CUMULATIVE PNL · 529 FILLS</div>
+            <svg id="pnl-curve" viewBox="0 0 320 132" preserveAspectRatio="none" style="height:132px;"></svg>
+            <div class="pager" id="pager-dots"></div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Probability Lattice <span class="sub">· 529 trades, one board</span></h2>
+      <span class="hint">every trade = one ball · 7 volatility gates · the scan gate tilts the board</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">live convergence</div>
+        
+        <div class="srow"><span class="k">balls dropped</span><span class="lead"></span><span class="v ">529</span></div>
+        
+        <div class="srow"><span class="k">landed green</span><span class="lead"></span><span class="v pos">146</span></div>
+        
+        <div class="srow"><span class="k">landed red</span><span class="lead"></span><span class="v neg">383</span></div>
+        
+        <div class="srow"><span class="k">green rate</span><span class="lead"></span><span class="v ">27.6%</span></div>
+        
+        <div class="srow"><span class="k">ev / trade</span><span class="lead"></span><span class="v neg">-3.60</span></div>
+        
+        <div class="srow"><span class="k">session pnl</span><span class="lead"></span><span class="v neg">-1,905.19</span></div>
+        
+        <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-1,905.19</span></div>
+        
+        <div class="srow"><span class="k">equity peak</span><span class="lead"></span><span class="v pos">+179.54</span></div>
+        
+        <div class="srow"><span class="k">max drawdown</span><span class="lead"></span><span class="v neg">-2,086.65</span></div>
+        
+        <div class="srow"><span class="k">best hit</span><span class="lead"></span><span class="v pos">+3.00%</span></div>
+        
+        <div class="srow"><span class="k">worst hit</span><span class="lead"></span><span class="v neg">-1.50%</span></div>
+        
+        <div class="srow"><span class="k">sharpe / trade</span><span class="lead"></span><span class="v ">-0.16</span></div>
+        
+        <div class="srow"><span class="k">breakeven wr</span><span class="lead"></span><span class="v ">33.3%</span></div>
+        
+        <div class="srow"><span class="k">edge vs gate</span><span class="lead"></span><span class="v neg">-5.7pp</span></div>
+        
+        <div class="stat-note">law of large numbers — a 27.6% gate only needs repetition, not conviction</div>
+      </div>
+      <div class="pane">
+        
+        <div style="position:relative;">
+          <canvas id="lattice" style="width:100%; display:block;"></canvas>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Tail Probability Ridge <span class="sub">· strike landscape</span></h2>
+      <span class="hint">every ridge = one symbol · strike = take-profit · only the tail pays</span>
+    </div>
+    <div class="section-body">
+      <div class="stat-col">
+        <div class="col-title">tail scanner</div>
+        
+        <div class="srow"><span class="k">symbols</span><span class="lead"></span><span class="v ">59</span></div>
+        
+        <div class="srow"><span class="k">sessions</span><span class="lead"></span><span class="v ">529</span></div>
+        
+        <div class="srow"><span class="k">strike</span><span class="lead"></span><span class="v ">+3%</span></div>
+        
+        <div class="srow"><span class="k">stop</span><span class="lead"></span><span class="v ">-1.5%</span></div>
+        
+        <div class="srow"><span class="k">tail mass</span><span class="lead"></span><span class="v ">19.09%</span></div>
+        
+        <div class="srow"><span class="k">implied mult</span><span class="lead"></span><span class="v ">x5.2</span></div>
+        
+        <div class="srow"><span class="k">stop mass</span><span class="lead"></span><span class="v neg">58.60%</span></div>
+        
+        <div class="srow"><span class="k">tp exits</span><span class="lead"></span><span class="v pos">101</span></div>
+        
+        <div class="srow"><span class="k">time exits</span><span class="lead"></span><span class="v ">118</span></div>
+        
+        <div class="srow"><span class="k">avg hold</span><span class="lead"></span><span class="v ">8.6 bars</span></div>
+        
+        <div class="srow"><span class="k">avg entry</span><span class="lead"></span><span class="v ">213.4</span></div>
+        
+        <div class="srow"><span class="k">best hit</span><span class="lead"></span><span class="v pos">+3.00%</span></div>
+        
+        <div class="srow"><span class="k">avg return</span><span class="lead"></span><span class="v neg">-0.280%</span></div>
+        
+        <div class="srow"><span class="k">realised</span><span class="lead"></span><span class="v neg">-1,905.19</span></div>
+        
+        <div class="stat-note">pennies into the body — the strike only breaks 19.1% of the time</div>
+      </div>
+      <div class="pane">
+        
+        <svg id="ridge" viewBox="0 0 1080 420"></svg>
+        
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Relationship Graph <span class="sub">· correlation simulation</span></h2>
+      <span class="hint" id="graph-counters">nodes 0 · edges 0 · signal 0.0% · iter 0</span>
+    </div>
+    <div class="graph-body">
+      <div class="side l">
+        <div class="col-title">node class</div>
+        <div class="legend-row"><span class="sw" style="background:#bf2f38"></span> bear signal</div>
+        <div class="legend-row"><span class="sw" style="background:#2c7a4b"></span> bull signal</div>
+        <div class="legend-row"><span class="sw" style="background:#14130f"></span> cluster hub</div>
+        <div class="legend-row"><span class="sw" style="background:#8f8c80"></span> catalyst</div>
+        <div class="legend-row"><span class="sw" style="background:transparent;border-bottom:2px dashed #14130f;border-radius:0;height:0"></span> median path</div>
+        <div style="margin-top:12px;">
+          
+          <div class="srow"><span class="k">bear paths</span><span class="lead"></span><span class="v neg">0</span></div>
+          
+          <div class="srow"><span class="k">bull paths</span><span class="lead"></span><span class="v pos">0</span></div>
+          
+          <div class="srow"><span class="k">paths sim</span><span class="lead"></span><span class="v ">0</span></div>
+          
+          <div class="srow"><span class="k">bear nodes</span><span class="lead"></span><span class="v neg">0</span></div>
+          
+          <div class="srow"><span class="k">bull nodes</span><span class="lead"></span><span class="v pos">0</span></div>
+          
+          <div class="srow"><span class="k">neighbours</span><span class="lead"></span><span class="v ">0</span></div>
+          
+          <div class="srow"><span class="k">mean |rho|</span><span class="lead"></span><span class="v ">0.0%</span></div>
+          
+          <div class="srow"><span class="k">iter / sec</span><span class="lead"></span><span class="v" id="iter-sec">—</span></div>
+          <div class="label" style="margin-top:8px;">convergence <span id="conv-pct">0%</span></div>
+          <div class="bar-track"><div class="bar-fill" id="conv-bar" style="width:0%"></div></div>
+          <div class="srow rule"><span class="k">predicted</span><span class="lead"></span><span class="v neg">▼ DOWN</span></div>
+          <div class="srow"><span class="k">median fair</span><span class="lead"></span><span class="v">86.4436</span></div>
+        </div>
+      </div>
+      <div class="side" style="padding:6px;">
+        
+        <div class="muted" style="padding:10px;">not enough cached candles to build a graph</div>
+        
+      </div>
+      <div class="side r">
+        <div class="bigstat"><span class="k">P(UP)</span><span class="v pixel pos">0.00</span></div>
+        <div class="bigstat"><span class="k">P(DOWN)</span><span class="v pixel neg">0.00</span></div>
+        <div class="bigstat"><span class="k">edge vs gate</span><span class="v pixel neg">-5.7</span></div>
+        <div class="bigstat"><span class="k">confidence</span><span class="v pixel">0.0%</span></div>
+        <div class="label" style="margin-top:12px;">24H CHANGE DISTRIBUTION</div>
+        
+        <div class="mini-hist" id="mini-hist"></div>
+        
+        <div class="stat-note" style="padding-top:10px;">p(up) = share of scan hits whose latest whale-momentum is positive</div>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Scan Hits <span class="sub">· 59 symbols</span></h2>
+      <span class="hint">rsi(14) &lt; 30 and volume &ge; 3&times; the 20-bar average</span>
+    </div>
+    <div class="scroll-x" style="padding: 4px 12px 10px;">
+      <table>
+        <thead><tr><th>symbol</th><th>rsi</th><th>vol&times;</th><th>close</th><th>24h%</th><th>trades</th><th>pnl %</th><th>replay</th></tr></thead>
+        <tbody>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AAOI-USDT-USDT.html">AAOI/USDT:USDT</a></td>
+            <td>28.1</td>
+            <td>8.60</td>
+            <td>73.16</td>
+            <td class="neg">-1.86</td>
+            <td>13</td>
+            <td class="neg">-0.14%</td>
+            <td><a href="replay/AAOI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AMAT-USDT-USDT.html">AMAT/USDT:USDT</a></td>
+            <td>22.2</td>
+            <td>5.90</td>
+            <td>405.87</td>
+            <td class="neg">-0.77</td>
+            <td>6</td>
+            <td class="neg">-2.41%</td>
+            <td><a href="replay/AMAT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AMD-USDT-USDT.html">AMD/USDT:USDT</a></td>
+            <td>26.2</td>
+            <td>5.53</td>
+            <td>521.2</td>
+            <td class="neg">-1.04</td>
+            <td>5</td>
+            <td class="pos">+0.06%</td>
+            <td><a href="replay/AMD-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/ARM-USDT-USDT.html">ARM/USDT:USDT</a></td>
+            <td>28.4</td>
+            <td>13.92</td>
+            <td>222.04</td>
+            <td class="neg">-1.82</td>
+            <td>12</td>
+            <td class="neg">-6.13%</td>
+            <td><a href="replay/ARM-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AVGO-USDT-USDT.html">AVGO/USDT:USDT</a></td>
+            <td>29.0</td>
+            <td>22.30</td>
+            <td>327.34</td>
+            <td class="neg">-0.67</td>
+            <td>7</td>
+            <td class="neg">-2.45%</td>
+            <td><a href="replay/AVGO-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/AXTI-USDT-USDT.html">AXTI/USDT:USDT</a></td>
+            <td>26.2</td>
+            <td>19.87</td>
+            <td>49.25</td>
+            <td class="neg">-3.22</td>
+            <td>11</td>
+            <td class="neg">-0.18%</td>
+            <td><a href="replay/AXTI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/BE-USDT-USDT.html">BE/USDT:USDT</a></td>
+            <td>28.3</td>
+            <td>10.77</td>
+            <td>214.14</td>
+            <td class="neg">-2.04</td>
+            <td>8</td>
+            <td class="pos">+3.02%</td>
+            <td><a href="replay/BE-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/BMNR-USDT-USDT.html">BMNR/USDT:USDT</a></td>
+            <td>28.3</td>
+            <td>5.48</td>
+            <td>21.3</td>
+            <td class="neg">-1.80</td>
+            <td>7</td>
+            <td class="pos">+0.00%</td>
+            <td><a href="replay/BMNR-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/CBRS-USDT-USDT.html">CBRS/USDT:USDT</a></td>
+            <td>25.0</td>
+            <td>4.46</td>
+            <td>124.92</td>
+            <td class="neg">-1.26</td>
+            <td>13</td>
+            <td class="neg">-13.48%</td>
+            <td><a href="replay/CBRS-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/CRWV-USDT-USDT.html">CRWV/USDT:USDT</a></td>
+            <td>25.1</td>
+            <td>9.15</td>
+            <td>59.64</td>
+            <td class="neg">-2.31</td>
+            <td>12</td>
+            <td class="neg">-10.72%</td>
+            <td><a href="replay/CRWV-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/CSOPSAMSUNG2L-USDT-USDT.html">CSOPSAMSUNG2L/USDT:USDT</a></td>
+            <td>22.7</td>
+            <td>12.19</td>
+            <td>5.425</td>
+            <td class="neg">-4.84</td>
+            <td>7</td>
+            <td class="neg">-4.83%</td>
+            <td><a href="replay/CSOPSAMSUNG2L-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/CSOPSKHYNIX2L-USDT-USDT.html">CSOPSKHYNIX2L/USDT:USDT</a></td>
+            <td>22.6</td>
+            <td>13.72</td>
+            <td>2.128</td>
+            <td class="neg">-5.30</td>
+            <td>14</td>
+            <td class="neg">-6.14%</td>
+            <td><a href="replay/CSOPSKHYNIX2L-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/DELL-USDT-USDT.html">DELL/USDT:USDT</a></td>
+            <td>29.7</td>
+            <td>9.89</td>
+            <td>447.31</td>
+            <td class="neg">-0.20</td>
+            <td>7</td>
+            <td class="neg">-1.50%</td>
+            <td><a href="replay/DELL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/DRAM-USDT-USDT.html">DRAM/USDT:USDT</a></td>
+            <td>24.7</td>
+            <td>26.66</td>
+            <td>45.25</td>
+            <td class="neg">-2.08</td>
+            <td>9</td>
+            <td class="neg">-5.15%</td>
+            <td><a href="replay/DRAM-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/EWJ-USDT-USDT.html">EWJ/USDT:USDT</a></td>
+            <td>27.5</td>
+            <td>25.20</td>
+            <td>94.37</td>
+            <td class="neg">-0.60</td>
+            <td>3</td>
+            <td class="neg">-1.64%</td>
+            <td><a href="replay/EWJ-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/EWT-USDT-USDT.html">EWT/USDT:USDT</a></td>
+            <td>12.5</td>
+            <td>16.98</td>
+            <td>104.07</td>
+            <td class="neg">-2.06</td>
+            <td>10</td>
+            <td class="neg">-3.78%</td>
+            <td><a href="replay/EWT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/EWY-USDT-USDT.html">EWY/USDT:USDT</a></td>
+            <td>27.2</td>
+            <td>7.22</td>
+            <td>147.96</td>
+            <td class="neg">-1.09</td>
+            <td>5</td>
+            <td class="neg">-4.38%</td>
+            <td><a href="replay/EWY-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/FLNC-USDT-USDT.html">FLNC/USDT:USDT</a></td>
+            <td>25.3</td>
+            <td>5.54</td>
+            <td>5.795</td>
+            <td class="neg">-1.34</td>
+            <td>12</td>
+            <td class="pos">+3.53%</td>
+            <td><a href="replay/FLNC-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/GIGADEV-USDT-USDT.html">GIGADEV/USDT:USDT</a></td>
+            <td>16.6</td>
+            <td>12.12</td>
+            <td>40.19</td>
+            <td class="neg">-3.71</td>
+            <td>15</td>
+            <td class="neg">-7.18%</td>
+            <td><a href="replay/GIGADEV-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/GLW-USDT-USDT.html">GLW/USDT:USDT</a></td>
+            <td>28.7</td>
+            <td>6.01</td>
+            <td>129.38</td>
+            <td class="neg">-1.32</td>
+            <td>10</td>
+            <td class="neg">-3.99%</td>
+            <td><a href="replay/GLW-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/HIMS-USDT-USDT.html">HIMS/USDT:USDT</a></td>
+            <td>29.4</td>
+            <td>3.23</td>
+            <td>27.71</td>
+            <td class="neg">-1.21</td>
+            <td>7</td>
+            <td class="neg">-2.76%</td>
+            <td><a href="replay/HIMS-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/HK0700-USDT-USDT.html">HK0700/USDT:USDT</a></td>
+            <td>28.2</td>
+            <td>22.93</td>
+            <td>414.51</td>
+            <td class="neg">-0.39</td>
+            <td>6</td>
+            <td class="neg">-3.04%</td>
+            <td><a href="replay/HK0700-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/INTC-USDT-USDT.html">INTC/USDT:USDT</a></td>
+            <td>26.7</td>
+            <td>7.68</td>
+            <td>87.76</td>
+            <td class="neg">-1.58</td>
+            <td>12</td>
+            <td class="pos">+4.33%</td>
+            <td><a href="replay/INTC-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/INTW-USDT-USDT.html">INTW/USDT:USDT</a></td>
+            <td>27.1</td>
+            <td>7.54</td>
+            <td>16.32</td>
+            <td class="neg">-3.15</td>
+            <td>10</td>
+            <td class="neg">-4.44%</td>
+            <td><a href="replay/INTW-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/IONQ-USDT-USDT.html">IONQ/USDT:USDT</a></td>
+            <td>26.4</td>
+            <td>4.84</td>
+            <td>30.83</td>
+            <td class="neg">-2.03</td>
+            <td>7</td>
+            <td class="neg">-0.64%</td>
+            <td><a href="replay/IONQ-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/IREN-USDT-USDT.html">IREN/USDT:USDT</a></td>
+            <td>26.6</td>
+            <td>14.11</td>
+            <td>26.42</td>
+            <td class="neg">-1.86</td>
+            <td>14</td>
+            <td class="pos">+5.45%</td>
+            <td><a href="replay/IREN-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/KLAC-USDT-USDT.html">KLAC/USDT:USDT</a></td>
+            <td>29.9</td>
+            <td>17.03</td>
+            <td>165.02</td>
+            <td class="neg">-1.10</td>
+            <td>6</td>
+            <td class="neg">-9.00%</td>
+            <td><a href="replay/KLAC-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/KORU-USDT-USDT.html">KORU/USDT:USDT</a></td>
+            <td>26.9</td>
+            <td>4.72</td>
+            <td>10.09</td>
+            <td class="neg">-2.89</td>
+            <td>8</td>
+            <td class="neg">-6.00%</td>
+            <td><a href="replay/KORU-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/KSTR-USDT-USDT.html">KSTR/USDT:USDT</a></td>
+            <td>29.0</td>
+            <td>8.16</td>
+            <td>19.25</td>
+            <td class="neg">-0.41</td>
+            <td>10</td>
+            <td class="pos">+3.42%</td>
+            <td><a href="replay/KSTR-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MARA-USDT-USDT.html">MARA/USDT:USDT</a></td>
+            <td>27.5</td>
+            <td>29.32</td>
+            <td>7.44</td>
+            <td class="neg">-1.46</td>
+            <td>9</td>
+            <td class="neg">-11.02%</td>
+            <td><a href="replay/MARA-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/META-USDT-USDT.html">META/USDT:USDT</a></td>
+            <td>25.5</td>
+            <td>53.68</td>
+            <td>703.81</td>
+            <td class="neg">-0.57</td>
+            <td>4</td>
+            <td class="neg">-4.32%</td>
+            <td><a href="replay/META-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MINIMAX-USDT-USDT.html">MINIMAX/USDT:USDT</a></td>
+            <td>24.4</td>
+            <td>44.68</td>
+            <td>22.35</td>
+            <td class="neg">-2.91</td>
+            <td>12</td>
+            <td class="pos">+0.97%</td>
+            <td><a href="replay/MINIMAX-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MRVL-USDT-USDT.html">MRVL/USDT:USDT</a></td>
+            <td>26.1</td>
+            <td>3.45</td>
+            <td>223.01</td>
+            <td class="neg">-1.49</td>
+            <td>7</td>
+            <td class="pos">+3.00%</td>
+            <td><a href="replay/MRVL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MU-USDT-USDT.html">MU/USDT:USDT</a></td>
+            <td>24.5</td>
+            <td>12.12</td>
+            <td>854.18</td>
+            <td class="neg">-2.04</td>
+            <td>7</td>
+            <td class="neg">-6.76%</td>
+            <td><a href="replay/MU-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MUU-USDT-USDT.html">MUU/USDT:USDT</a></td>
+            <td>25.5</td>
+            <td>10.68</td>
+            <td>22.99</td>
+            <td class="neg">-4.01</td>
+            <td>11</td>
+            <td class="pos">+0.99%</td>
+            <td><a href="replay/MUU-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/MVLL-USDT-USDT.html">MVLL/USDT:USDT</a></td>
+            <td>26.1</td>
+            <td>6.93</td>
+            <td>24.71</td>
+            <td class="neg">-3.40</td>
+            <td>9</td>
+            <td class="pos">+1.10%</td>
+            <td><a href="replay/MVLL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/NVDL-USDT-USDT.html">NVDL/USDT:USDT</a></td>
+            <td>29.5</td>
+            <td>15.67</td>
+            <td>31.63</td>
+            <td class="neg">-1.19</td>
+            <td>6</td>
+            <td class="pos">+1.79%</td>
+            <td><a href="replay/NVDL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/ORCL-USDT-USDT.html">ORCL/USDT:USDT</a></td>
+            <td>28.7</td>
+            <td>9.41</td>
+            <td>126.97</td>
+            <td class="neg">-0.71</td>
+            <td>8</td>
+            <td class="neg">-3.41%</td>
+            <td><a href="replay/ORCL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/PRL-USDT-USDT.html">PRL/USDT:USDT</a></td>
+            <td>27.7</td>
+            <td>3.78</td>
+            <td>0.0923</td>
+            <td class="neg">-4.05</td>
+            <td>4</td>
+            <td class="neg">-0.11%</td>
+            <td><a href="replay/PRL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/QQQ-USDT-USDT.html">QQQ/USDT:USDT</a></td>
+            <td>27.5</td>
+            <td>5.88</td>
+            <td>706.92</td>
+            <td class="neg">-0.43</td>
+            <td>7</td>
+            <td class="neg">-1.46%</td>
+            <td><a href="replay/QQQ-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/RAM-USDT-USDT.html">RAM/USDT:USDT</a></td>
+            <td>23.8</td>
+            <td>7.63</td>
+            <td>7.51</td>
+            <td class="neg">-4.21</td>
+            <td>9</td>
+            <td class="pos">+1.63%</td>
+            <td><a href="replay/RAM-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SAMSUNG-USDT-USDT.html">SAMSUNG/USDT:USDT</a></td>
+            <td>24.0</td>
+            <td>16.46</td>
+            <td>151.78</td>
+            <td class="neg">-2.48</td>
+            <td>5</td>
+            <td class="neg">-6.01%</td>
+            <td><a href="replay/SAMSUNG-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SECZ-USDT-USDT.html">SECZ/USDT:USDT</a></td>
+            <td>23.4</td>
+            <td>8.65</td>
+            <td>9.57</td>
+            <td class="neg">-3.53</td>
+            <td>14</td>
+            <td class="neg">-0.81%</td>
+            <td><a href="replay/SECZ-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SKHY-USDT-USDT.html">SKHY/USDT:USDT</a></td>
+            <td>22.1</td>
+            <td>17.46</td>
+            <td>132.62</td>
+            <td class="neg">-2.65</td>
+            <td>8</td>
+            <td class="neg">-6.05%</td>
+            <td><a href="replay/SKHY-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SKHYNIX-USDT-USDT.html">SKHYNIX/USDT:USDT</a></td>
+            <td>21.2</td>
+            <td>13.51</td>
+            <td>887.89</td>
+            <td class="neg">-2.95</td>
+            <td>11</td>
+            <td class="neg">-6.04%</td>
+            <td><a href="replay/SKHYNIX-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SKUU-USDT-USDT.html">SKUU/USDT:USDT</a></td>
+            <td>20.9</td>
+            <td>8.67</td>
+            <td>14.23</td>
+            <td class="neg">-5.32</td>
+            <td>11</td>
+            <td class="pos">+0.52%</td>
+            <td><a href="replay/SKUU-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SNDK-USDT-USDT.html">SNDK/USDT:USDT</a></td>
+            <td>20.8</td>
+            <td>12.48</td>
+            <td>1256.94</td>
+            <td class="neg">-2.49</td>
+            <td>12</td>
+            <td class="neg">-0.28%</td>
+            <td><a href="replay/SNDK-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SNXX-USDT-USDT.html">SNXX/USDT:USDT</a></td>
+            <td>21.1</td>
+            <td>10.36</td>
+            <td>8.49</td>
+            <td class="neg">-5.03</td>
+            <td>13</td>
+            <td class="neg">-8.88%</td>
+            <td><a href="replay/SNXX-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SOXL-USDT-USDT.html">SOXL/USDT:USDT</a></td>
+            <td>25.7</td>
+            <td>3.96</td>
+            <td>90.2</td>
+            <td class="neg">-3.56</td>
+            <td>8</td>
+            <td class="neg">-6.07%</td>
+            <td><a href="replay/SOXL-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/SPY-USDT-USDT.html">SPY/USDT:USDT</a></td>
+            <td>28.1</td>
+            <td>20.11</td>
+            <td>760.72</td>
+            <td class="neg">-0.35</td>
+            <td>5</td>
+            <td class="neg">-0.41%</td>
+            <td><a href="replay/SPY-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/STO-USDT-USDT.html">STO/USDT:USDT</a></td>
+            <td>29.6</td>
+            <td>3.39</td>
+            <td>0.03316</td>
+            <td class="neg">-4.63</td>
+            <td>3</td>
+            <td class="pos">+4.50%</td>
+            <td><a href="replay/STO-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/STXX-USDT-USDT.html">STXX/USDT:USDT</a></td>
+            <td>17.1</td>
+            <td>5.85</td>
+            <td>608</td>
+            <td class="neg">-3.00</td>
+            <td>14</td>
+            <td class="neg">-8.68%</td>
+            <td><a href="replay/STXX-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/TQQQ-USDT-USDT.html">TQQQ/USDT:USDT</a></td>
+            <td>27.7</td>
+            <td>8.20</td>
+            <td>67.06</td>
+            <td class="neg">-1.41</td>
+            <td>8</td>
+            <td class="pos">+0.33%</td>
+            <td><a href="replay/TQQQ-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/TWT-USDT-USDT.html">TWT/USDT:USDT</a></td>
+            <td>29.6</td>
+            <td>3.07</td>
+            <td>0.4635</td>
+            <td class="neg">-5.06</td>
+            <td>7</td>
+            <td class="neg">-6.00%</td>
+            <td><a href="replay/TWT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/VRT-USDT-USDT.html">VRT/USDT:USDT</a></td>
+            <td>25.6</td>
+            <td>3.18</td>
+            <td>204.03</td>
+            <td class="neg">-0.75</td>
+            <td>9</td>
+            <td class="neg">-4.20%</td>
+            <td><a href="replay/VRT-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/WDC-USDT-USDT.html">WDC/USDT:USDT</a></td>
+            <td>23.6</td>
+            <td>10.03</td>
+            <td>315.6</td>
+            <td class="neg">-3.25</td>
+            <td>13</td>
+            <td class="neg">-1.18%</td>
+            <td><a href="replay/WDC-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/XBI-USDT-USDT.html">XBI/USDT:USDT</a></td>
+            <td>26.2</td>
+            <td>5.12</td>
+            <td>143.76</td>
+            <td class="neg">-0.39</td>
+            <td>6</td>
+            <td class="neg">-1.23%</td>
+            <td><a href="replay/XBI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/ZHIPU-USDT-USDT.html">ZHIPU/USDT:USDT</a></td>
+            <td>18.0</td>
+            <td>24.57</td>
+            <td>62.75</td>
+            <td class="neg">-3.25</td>
+            <td>13</td>
+            <td class="pos">+4.63%</td>
+            <td><a href="replay/ZHIPU-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+          
+          
+          <tr>
+            <td><a href="charts/ZHONGJI-USDT-USDT.html">ZHONGJI/USDT:USDT</a></td>
+            <td>28.4</td>
+            <td>7.39</td>
+            <td>93.74</td>
+            <td class="neg">-2.51</td>
+            <td>10</td>
+            <td class="neg">-4.56%</td>
+            <td><a href="replay/ZHONGJI-USDT-USDT.html">replay</a></td>
+          </tr>
+          
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · TRADER ANON · <b>529 FILLS</b></span>
+    <span>BACKTEST 745 SYMBOLS · SCAN 44.6S · TF 1H · LATENCY <b>59.9 MS</b></span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b> · 2026-10-17</span>
+  </div>
+</div>
+
+<script type="application/json" id="d-curve">[-15.8, -31.6, -47.4, -63.2, -79.0, -94.8, -110.6, -126.4, -142.2, -158.0, -173.8, -189.6, -205.4, -221.2, -237.0, -252.8, -268.6, -284.4, -300.2, -316.0, -286.8, -257.6, -228.4, -244.2, -260.0, -275.8, -291.6, -262.4, -278.2, -294.0, -309.8, -325.6, -341.4, -357.2, -373.0, -388.8, -404.6, -420.4, -436.2, -452.0, -467.8, -483.6, -499.4, -515.2, -531.0, -546.8, -562.6, -578.4, -594.2, -610.0, -625.8, -641.6, -657.4, -654.24, -670.04, -656.14, -626.94, -628.26, -601.93, -594.22, -589.87, -560.67, -561.67, -532.47, -532.21, -503.01, -473.81, -444.61, -442.97, -434.52, -434.61, -450.41, -421.21, -412.06, -382.86, -398.66, -392.28, -404.22, -420.02, -435.82, -451.62, -467.42, -438.22, -409.02, -379.82, -350.62, -321.42, -337.22, -353.02, -351.19, -366.99, -345.28, -336.63, -327.2, -343.0, -358.8, -374.6, -345.4, -361.2, -377.0, -392.8, -408.6, -424.4, -409.16, -379.96, -350.76, -321.56, -292.36, -263.16, -257.23, -228.03, -243.83, -259.63, -275.43, -291.23, -307.03, -322.83, -338.63, -309.43, -280.23, -251.03, -266.83, -282.63, -298.43, -269.23, -240.03, -255.83, -271.63, -287.43, -303.23, -319.03, -334.83, -350.63, -366.43, -382.23, -398.03, -413.83, -429.63, -400.43, -371.23, -373.15, -388.95, -404.75, -375.55, -346.35, -362.15, -369.2, -379.29, -395.09, -410.89, -426.69, -442.49, -458.29, -474.09, -489.89, -505.69, -521.49, -528.55, -526.89, -529.52, -545.32, -561.12, -576.92, -592.72, -608.52, -579.32, -587.25, -600.07, -604.99, -605.06, -606.46, -622.26, -638.06, -653.86, -624.66, -640.46, -656.26, -672.06, -687.86, -703.66, -719.46, -735.26, -751.06, -766.86, -782.66, -798.46, -769.26, -740.06, -710.86, -681.66, -652.46, -623.26, -594.06, -564.86, -535.66, -506.46, -477.26, -448.06, -418.86, -389.66, -360.46, -376.26, -347.06, -317.86, -288.66, -277.26, -248.06, -218.86, -189.66, -160.46, -131.26, -102.06, -72.86, -43.66, -14.46, 14.74, 43.94, 60.91, 90.11, 119.31, 148.51, 177.71, 161.91, 146.11, 130.31, 116.72, 115.07, 121.47, 132.66, 138.46, 132.95, 140.15, 149.09, 158.19, 167.43, 158.62, 157.54, 162.22, 172.67, 177.77, 179.54, 177.57, 161.77, 145.97, 130.17, 114.37, 98.57, 82.77, 66.97, 51.17, 35.37, 19.57, 3.77, -12.03, 17.17, 1.37, -14.43, -30.23, -46.03, -61.83, -77.63, -93.43, -109.23, -125.03, -140.83, -156.63, -172.43, -188.23, -204.03, -219.83, -235.63, -251.43, -267.23, -283.03, -298.83, -314.63, -330.43, -346.23, -362.03, -377.83, -393.63, -409.43, -425.23, -441.03, -456.83, -472.63, -488.43, -504.23, -520.03, -535.83, -551.63, -567.43, -583.23, -599.03, -614.83, -630.63, -646.43, -662.23, -678.03, -693.83, -709.63, -725.43, -741.23, -757.03, -772.83, -788.63, -759.43, -730.23, -701.03, -671.83, -687.63, -703.43, -719.23, -735.03, -705.83, -721.63, -737.43, -753.23, -769.03, -784.83, -800.63, -816.43, -832.23, -848.03, -863.83, -834.63, -836.4, -807.2, -778.0, -748.8, -764.6, -780.4, -751.2, -722.0, -692.8, -708.6, -679.4, -650.2, -621.0, -591.8, -562.6, -557.7, -528.5, -532.77, -527.6, -509.96, -489.71, -505.51, -521.31, -507.0, -522.8, -493.6, -509.4, -525.2, -541.0, -556.8, -572.6, -588.4, -604.2, -620.0, -635.8, -651.6, -667.4, -683.2, -699.0, -714.8, -730.6, -746.4, -762.2, -775.57, -791.37, -807.17, -822.97, -838.77, -854.57, -870.37, -886.17, -901.97, -917.77, -933.57, -949.37, -965.17, -980.97, -996.77, -1012.57, -1028.37, -1044.17, -1047.48, -1063.28, -1079.08, -1094.88, -1110.68, -1126.48, -1142.28, -1158.08, -1173.88, -1189.68, -1205.48, -1221.28, -1237.08, -1252.88, -1268.68, -1284.48, -1300.28, -1316.08, -1331.88, -1347.68, -1363.48, -1379.28, -1395.08, -1410.88, -1426.68, -1442.48, -1458.28, -1474.08, -1489.88, -1505.68, -1521.48, -1537.28, -1553.08, -1568.88, -1584.68, -1600.48, -1616.28, -1632.08, -1647.88, -1663.68, -1679.48, -1695.28, -1711.08, -1726.88, -1742.68, -1713.48, -1684.28, -1700.08, -1703.78, -1674.58, -1674.88, -1690.68, -1706.48, -1722.28, -1738.08, -1708.88, -1679.68, -1650.48, -1621.28, -1592.08, -1562.88, -1533.68, -1504.48, -1475.28, -1446.08, -1437.14, -1452.94, -1468.74, -1484.54, -1500.34, -1516.14, -1531.94, -1547.74, -1563.54, -1579.34, -1595.14, -1610.94, -1626.74, -1642.54, -1653.29, -1660.14, -1662.95, -1665.8, -1668.01, -1671.02, -1677.06, -1689.39, -1705.19, -1718.81, -1730.43, -1746.23, -1762.03, -1771.91, -1787.71, -1803.51, -1819.31, -1835.11, -1844.6, -1846.77, -1848.24, -1849.65, -1850.22, -1851.02, -1851.58, -1853.72, -1857.82, -1860.03, -1859.5, -1860.01, -1861.16, -1860.96, -1861.76, -1862.39, -1862.74, -1862.92, -1870.17, -1873.99, -1874.79, -1879.73, -1880.53, -1879.09, -1880.42, -1882.53, -1887.36, -1885.3, -1893.76, -1895.65, -1896.35, -1895.81, -1896.74, -1899.63, -1900.96, -1902.21, -1903.71, -1903.28, -1902.9, -1904.37, -1904.92, -1905.87, -1907.11, -1906.63, -1905.19]</script>
+<script type="application/json" id="d-trades">[{"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SAMSUNG", "symbol": "SAMSUNG/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BE", "symbol": "BE/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "META", "symbol": "META/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AMD", "symbol": "AMD/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SAMSUNG", "symbol": "SAMSUNG/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.3956, "pnl_usdt": 3.156, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 1.4703, "pnl_usdt": 13.9028, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0515, "pnl_usdt": -1.3145, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 2.7122, "pnl_usdt": 26.3217, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.8515, "pnl_usdt": 7.7149, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.5148, "pnl_usdt": 4.3482, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "BE", "symbol": "BE/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0195, "pnl_usdt": -0.9952, "short": "SPY", "symbol": "SPY/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.1055, "pnl_usdt": 0.2553, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.2438, "pnl_usdt": 1.6382, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9257, "pnl_usdt": 8.4569, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.0701, "pnl_usdt": -0.0992, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9951, "pnl_usdt": 9.1511, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.7188, "pnl_usdt": 6.3879, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -1.1146, "pnl_usdt": -11.9458, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.2635, "pnl_usdt": 1.835, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 2.2506, "pnl_usdt": 21.7059, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9447, "pnl_usdt": 8.6475, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.0235, "pnl_usdt": 9.4351, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 1.6036, "pnl_usdt": 15.2363, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.6728, "pnl_usdt": 5.9277, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "PRL", "symbol": "PRL/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.112, "pnl_usdt": -1.92, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.6243, "pnl_usdt": -7.0425, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.9297, "pnl_usdt": -10.0973, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.626, "pnl_usdt": -7.0602, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.2466, "pnl_usdt": 1.666, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.1827, "pnl_usdt": -2.6275, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.7136, "pnl_usdt": -7.9356, "short": "EWJ", "symbol": "EWJ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.2016, "pnl_usdt": -12.816, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.4123, "pnl_usdt": -4.9235, "short": "META", "symbol": "META/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0735, "pnl_usdt": -0.0646, "short": "SPY", "symbol": "SPY/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0606, "pnl_usdt": -1.4056, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BE", "symbol": "BE/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "STO", "symbol": "STO/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "BE", "symbol": "BE/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.22, "pnl_usdt": 11.3998, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.7775, "pnl_usdt": 16.9754, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.2795, "pnl_usdt": -13.5946, "short": "AMD", "symbol": "AMD/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0851, "pnl_usdt": -1.6505, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.7204, "pnl_usdt": 6.4044, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.1984, "pnl_usdt": 11.1842, "short": "EWY", "symbol": "EWY/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.6601, "pnl_usdt": 5.801, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.4711, "pnl_usdt": -5.5107, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.8002, "pnl_usdt": 7.202, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9742, "pnl_usdt": 8.9417, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9896, "pnl_usdt": 9.0957, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.0043, "pnl_usdt": 9.243, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.8009, "pnl_usdt": -8.8086, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0283, "pnl_usdt": -1.0826, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.5485, "pnl_usdt": 4.6854, "short": "MU", "symbol": "MU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.1249, "pnl_usdt": 10.4493, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.5895, "pnl_usdt": 5.0947, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.2574, "pnl_usdt": 1.7741, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.1171, "pnl_usdt": -1.9711, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWY", "symbol": "EWY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BE", "symbol": "BE/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWY", "symbol": "EWY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PRL", "symbol": "PRL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SAMSUNG", "symbol": "SAMSUNG/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STO", "symbol": "STO/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BE", "symbol": "BE/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "STO", "symbol": "STO/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0968, "pnl_usdt": -1.7679, "short": "AMD", "symbol": "AMD/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.5692, "pnl_usdt": 4.8918, "short": "EWJ", "symbol": "EWJ/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.3462, "pnl_usdt": -4.2616, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.5971, "pnl_usdt": 5.1706, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 1.8433, "pnl_usdt": 17.633, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 2.1055, "pnl_usdt": 20.2553, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 1.5106, "pnl_usdt": 14.3063, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.2565, "pnl_usdt": -13.3648, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2511, "pnl_usdt": -3.3107, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWY", "symbol": "EWY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SAMSUNG", "symbol": "SAMSUNG/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWJ", "symbol": "EWJ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "PRL", "symbol": "PRL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2907, "pnl_usdt": -3.7072, "short": "SPY", "symbol": "SPY/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.0504, "pnl_usdt": -0.2957, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "DELL", "symbol": "DELL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AMD", "symbol": "AMD/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "BE", "symbol": "BE/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": true}, {"exit_reason": "tp", "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.9736, "pnl_usdt": 8.9357, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": true}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "META", "symbol": "META/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.9947, "pnl_usdt": -10.7471, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.6048, "pnl_usdt": -6.8484, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2014, "pnl_usdt": -2.8141, "short": "SPY", "symbol": "SPY/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2049, "pnl_usdt": -2.8492, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.1412, "pnl_usdt": -2.212, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2203, "pnl_usdt": -3.0035, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.5242, "pnl_usdt": -6.0425, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.1529, "pnl_usdt": -12.3287, "short": "AMAT", "symbol": "AMAT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "ARM", "symbol": "ARM/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.2824, "pnl_usdt": -13.6244, "short": "AVGO", "symbol": "AVGO/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -1.0819, "pnl_usdt": -11.6195, "short": "EWY", "symbol": "EWY/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "GLW", "symbol": "GLW/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "KLAC", "symbol": "KLAC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.9079, "pnl_usdt": -9.8788, "short": "META", "symbol": "META/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "MRVL", "symbol": "MRVL/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "STXX", "symbol": "STXX/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "TWT", "symbol": "TWT/USDT:USDT", "win": false}, {"exit_reason": "sl", "pnl_pct": -1.5, "pnl_usdt": -15.8, "short": "WDC", "symbol": "WDC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.8693, "pnl_usdt": -9.4927, "short": "XBI", "symbol": "XBI/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.1365, "pnl_usdt": -2.165, "short": "AAOI", "symbol": "AAOI/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0671, "pnl_usdt": -1.4711, "short": "AMD", "symbol": "AMD/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0609, "pnl_usdt": -1.4088, "short": "AXTI", "symbol": "AXTI/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0234, "pnl_usdt": -0.5665, "short": "BE", "symbol": "BE/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0, "pnl_usdt": -0.8, "short": "BMNR", "symbol": "BMNR/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.024, "pnl_usdt": -0.5598, "short": "CBRS", "symbol": "CBRS/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.134, "pnl_usdt": -2.1396, "short": "CRWV", "symbol": "CRWV/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.3307, "pnl_usdt": -4.107, "short": "CSOPSAMSUNG2L", "symbol": "CSOPSAMSUNG2L/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.1408, "pnl_usdt": -2.2078, "short": "CSOPSKHYNIX2L", "symbol": "CSOPSKHYNIX2L/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.1328, "pnl_usdt": 0.5277, "short": "DRAM", "symbol": "DRAM/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.0288, "pnl_usdt": -0.5116, "short": "EWT", "symbol": "EWT/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0345, "pnl_usdt": -1.145, "short": "FLNC", "symbol": "FLNC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0996, "pnl_usdt": 0.1963, "short": "GIGADEV", "symbol": "GIGADEV/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.0, "pnl_usdt": -0.8, "short": "HIMS", "symbol": "HIMS/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0169, "pnl_usdt": -0.6311, "short": "HK0700", "symbol": "HK0700/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0456, "pnl_usdt": -0.344, "short": "INTC", "symbol": "INTC/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0613, "pnl_usdt": -0.1869, "short": "INTW", "symbol": "INTW/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.6445, "pnl_usdt": -7.2454, "short": "IONQ", "symbol": "IONQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.3019, "pnl_usdt": -3.8189, "short": "IREN", "symbol": "IREN/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0, "pnl_usdt": -0.8, "short": "KORU", "symbol": "KORU/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.4139, "pnl_usdt": -4.9386, "short": "KSTR", "symbol": "KSTR/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0, "pnl_usdt": -0.8, "short": "MARA", "symbol": "MARA/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.2242, "pnl_usdt": 1.4422, "short": "MINIMAX", "symbol": "MINIMAX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0538, "pnl_usdt": -1.3382, "short": "MU", "symbol": "MU/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.1303, "pnl_usdt": -2.1032, "short": "MUU", "symbol": "MUU/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.4031, "pnl_usdt": -4.8306, "short": "MVLL", "symbol": "MVLL/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.2854, "pnl_usdt": 2.0535, "short": "NVDL", "symbol": "NVDL/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.7659, "pnl_usdt": -8.4592, "short": "ORCL", "symbol": "ORCL/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.1082, "pnl_usdt": -1.8823, "short": "PRL", "symbol": "PRL/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.0099, "pnl_usdt": -0.701, "short": "QQQ", "symbol": "QQQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.1333, "pnl_usdt": 0.5333, "short": "RAM", "symbol": "RAM/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0132, "pnl_usdt": -0.9318, "short": "SAMSUNG", "symbol": "SAMSUNG/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.2086, "pnl_usdt": -2.8855, "short": "SECZ", "symbol": "SECZ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0528, "pnl_usdt": -1.3275, "short": "SKHY", "symbol": "SKHY/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.045, "pnl_usdt": -1.2503, "short": "SKHYNIX", "symbol": "SKHYNIX/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0702, "pnl_usdt": -1.5022, "short": "SKUU", "symbol": "SKUU/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.1227, "pnl_usdt": 0.4267, "short": "SNDK", "symbol": "SNDK/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.1179, "pnl_usdt": 0.3792, "short": "SNXX", "symbol": "SNXX/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": -0.0665, "pnl_usdt": -1.4647, "short": "SOXL", "symbol": "SOXL/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.025, "pnl_usdt": -0.5502, "short": "SPY", "symbol": "SPY/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0149, "pnl_usdt": -0.9491, "short": "TQQQ", "symbol": "TQQQ/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": -0.0441, "pnl_usdt": -1.2409, "short": "VRT", "symbol": "VRT/USDT:USDT", "win": false}, {"exit_reason": "time", "pnl_pct": 0.1277, "pnl_usdt": 0.4765, "short": "ZHIPU", "symbol": "ZHIPU/USDT:USDT", "win": true}, {"exit_reason": "time", "pnl_pct": 0.2245, "pnl_usdt": 1.4453, "short": "ZHONGJI", "symbol": "ZHONGJI/USDT:USDT", "win": true}]</script>
+<script type="application/json" id="d-wins">[{"bars_held": 21, "entry_price": 95.19, "entry_time_iso": "2026-09-28 16:00 UTC", "entry_time_short": "Sep 28 16:00", "exit_price": 98.0457, "exit_reason": "tp", "exit_time_short": "Sep 29 13:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT"}, {"bars_held": 3, "entry_price": 114.74, "entry_time_iso": "2026-10-05 15:00 UTC", "entry_time_short": "Oct 05 15:00", "exit_price": 118.1822, "exit_reason": "tp", "exit_time_short": "Oct 05 18:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT"}, {"bars_held": 9, "entry_price": 106.84, "entry_time_iso": "2026-10-08 19:00 UTC", "entry_time_short": "Oct 08 19:00", "exit_price": 110.04520000000001, "exit_reason": "tp", "exit_time_short": "Oct 09 04:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT"}, {"bars_held": 5, "entry_price": 96.36, "entry_time_iso": "2026-10-13 16:00 UTC", "entry_time_short": "Oct 13 16:00", "exit_price": 99.2508, "exit_reason": "tp", "exit_time_short": "Oct 13 21:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AAOI", "symbol": "AAOI/USDT:USDT"}, {"bars_held": 5, "entry_price": 547.44, "entry_time_iso": "2026-10-15 15:00 UTC", "entry_time_short": "Oct 15 15:00", "exit_price": 563.8632000000001, "exit_reason": "tp", "exit_time_short": "Oct 15 20:00", "multiple": 1.03, "pnl_pct": 3.0, "pnl_usdt": 29.2, "short": "AMD", "symbol": "AMD/USDT:USDT"}]</script>
+<script type="application/json" id="d-ridge">{"AAOI/USDT:USDT": [-1.5, 3.0, 3.0, -1.5, -1.5, 3.0, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, -0.1365], "AMAT/USDT:USDT": [1.4703, 1.7775, -1.5, -1.5, -1.5, -1.1529], "AMD/USDT:USDT": [-1.5, -1.2795, -0.0968, 3.0, -0.0671], "ARM/USDT:USDT": [-1.5, -1.5, 3.0, 0.6728, -1.5, -1.5, 3.0, -0.8009, -1.5, -1.5, -1.5, -1.5], "AVGO/USDT:USDT": [0.8515, 0.9742, -1.5, 1.5106, -1.5, -1.5, -1.2824], "AXTI/USDT:USDT": [-1.5, 3.0, -1.5, -1.5, 3.0, -1.5, -0.1171, -1.5, 3.0, -1.5, -0.0609], "BE/USDT:USDT": [-1.5, 3.0, -1.5, 3.0, -1.5, -1.5, 3.0, 0.0234], "BMNR/USDT:USDT": [3.0, -1.5, -1.5, 3.0, -1.5, -1.5, 0.0], "CBRS/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, 0.024], "CRWV/USDT:USDT": [-1.5, 3.0, -0.0851, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -0.134], "CSOPSAMSUNG2L/USDT:USDT": [-1.5, 3.0, -1.5, -1.5, -1.5, -1.5, -0.3307], "CSOPSKHYNIX2L/USDT:USDT": [-1.5, -1.5, -1.5, 3.0, -1.5, 3.0, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, -0.1408], "DELL/USDT:USDT": [-1.5, 3.0, 3.0, -1.5, -1.5, -1.5, -1.5], "DRAM/USDT:USDT": [-1.5, -1.5, 3.0, 0.7204, -1.5, -1.5, -1.5, -1.5, 0.1328], "EWJ/USDT:USDT": [-0.7136, 0.5692, -1.5], "EWT/USDT:USDT": [-1.5, 0.9951, -0.6243, -1.5, 0.9896, -1.5, -1.5, 0.9736, -0.1412, 0.0288], "EWY/USDT:USDT": [1.1984, -1.5, -1.5, -1.5, -1.0819], "FLNC/USDT:USDT": [-1.5, -1.5, 3.0, 0.2635, -1.2016, 3.0, -1.5, 3.0, -1.5, -1.5, 3.0, -0.0345], "GIGADEV/USDT:USDT": [-1.5, 0.7188, 3.0, -1.5, -1.5, -1.5, -1.5, 1.0043, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, 0.0996], "GLW/USDT:USDT": [0.5148, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, 3.0, -1.5, -1.5], "HIMS/USDT:USDT": [0.2438, 3.0, -1.5, -1.5, -1.5, -1.5, 0.0], "HK0700/USDT:USDT": [-1.5, -1.5, -0.9297, 1.22, -0.3462, 0.0169], "INTC/USDT:USDT": [-1.5, 0.9257, 1.6036, -1.5, 3.0, 0.2574, -1.5, -1.5, 3.0, 3.0, -1.5, 0.0456], "INTW/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, 3.0, 0.0613], "IONQ/USDT:USDT": [3.0, 3.0, -1.5, -1.5, -1.5, -1.5, -0.6445], "IREN/USDT:USDT": [-1.5, 3.0, 3.0, -1.5, -1.5, 3.0, -0.0283, 3.0, -1.5, -1.5, -1.5, 3.0, -0.2203, -0.3019], "KLAC/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5], "KORU/USDT:USDT": [3.0, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, 0.0], "KSTR/USDT:USDT": [0.3956, -1.1146, 3.0, -1.5, -1.5, 3.0, 3.0, -1.5, 0.0504, -0.4139], "MARA/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -1.5, -0.5242, 0.0], "META/USDT:USDT": [-1.5, -0.4123, -1.5, -0.9079], "MINIMAX/USDT:USDT": [-1.5, 3.0, 2.2506, -1.5, -1.5, -1.5, 3.0, 3.0, -1.5, -1.5, -1.5, 0.2242], "MRVL/USDT:USDT": [-1.5, 3.0, 3.0, -1.5, -1.5, 3.0, -1.5], "MU/USDT:USDT": [-1.5, 0.5485, -1.5, -1.5, -1.2565, -1.5, -0.0538], "MUU/USDT:USDT": [-1.5, 3.0, 3.0, 1.1249, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -0.1303], "MVLL/USDT:USDT": [-1.5, 3.0, -1.5, 3.0, 3.0, -1.5, -1.5, -1.5, -0.4031], "NVDL/USDT:USDT": [-1.5, 3.0, 3.0, -1.5, -1.5, 0.2854], "ORCL/USDT:USDT": [-1.5, 0.1055, 0.2466, 3.0, -1.5, -1.5, -1.5, -0.7659], "PRL/USDT:USDT": [3.0, -1.5, -1.5, -0.1082], "QQQ/USDT:USDT": [-0.0515, -0.1827, 0.6601, 0.5971, -1.5, -0.9947, 0.0099], "RAM/USDT:USDT": [-1.5, -1.5, 3.0, 3.0, 3.0, -1.5, -1.5, -1.5, 0.1333], "SAMSUNG/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -0.0132], "SECZ/USDT:USDT": [3.0, -1.5, -1.5, 3.0, -1.5, 3.0, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -0.6048, -0.2086], "SKHY/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, -0.0528], "SKHYNIX/USDT:USDT": [-1.5, -1.5, -1.5, 3.0, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, -0.045], "SKUU/USDT:USDT": [-1.5, -1.5, 3.0, 3.0, 3.0, 0.5895, -1.5, -1.5, -1.5, -1.5, -0.0702], "SNDK/USDT:USDT": [-1.5, -1.5, 0.0701, 3.0, -0.4711, -1.5, -1.5, -1.5, 3.0, -1.5, 3.0, 0.1227], "SNXX/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, 3.0, -1.5, -1.5, 0.1179], "SOXL/USDT:USDT": [-1.5, -1.5, 3.0, -1.5, -1.5, -1.5, -1.5, -0.0665], "SPY/USDT:USDT": [-0.0195, 0.0735, -0.2907, -0.2014, 0.025], "STO/USDT:USDT": [3.0, -1.5, 3.0], "STXX/USDT:USDT": [-1.5, -1.5, 0.9447, -1.5, -1.5, -0.626, -1.5, -1.5, -1.5, 3.0, 3.0, -1.5, -1.5, -1.5], "TQQQ/USDT:USDT": [-0.0606, 3.0, -1.5, 2.1055, -1.5, -1.5, -0.2049, -0.0149], "TWT/USDT:USDT": [-1.5, -1.5, -1.5, -1.5, -1.5, 3.0, -1.5], "VRT/USDT:USDT": [-1.5, -1.5, -1.5, 3.0, 1.8433, -1.5, -1.5, -1.5, -0.0441], "WDC/USDT:USDT": [-1.5, 3.0, -1.5, 1.0235, -1.5, -1.5, 0.8002, -1.5, -1.5, 3.0, 3.0, -1.5, -1.5], "XBI/USDT:USDT": [-0.112, 3.0, -1.5, -0.2511, -1.5, -0.8693], "ZHIPU/USDT:USDT": [-1.5, -1.5, 3.0, -1.5, -1.5, 3.0, 3.0, -1.5, 3.0, -1.5, -1.5, 3.0, 0.1277], "ZHONGJI/USDT:USDT": [-1.5, 2.7122, -1.5, -1.5, 3.0, -1.5, -1.5, -1.5, -1.5, 0.2245]}</script>
+<script type="application/json" id="d-graph">{"edges": [], "hubs": [], "nodes": []}</script>
+<script type="application/json" id="d-change">[-1.86, -0.77, -1.04, -1.82, -0.67, -3.22, -2.04, -1.8, -1.26, -2.31, -4.84, -5.3, -0.2, -2.08, -0.6, -2.06, -1.09, -1.34, -3.71, -1.32, -1.21, -0.39, -1.58, -3.15, -2.03, -1.86, -1.1, -2.89, -0.41, -1.46, -0.57, -2.91, -1.49, -2.04, -4.01, -3.4, -1.19, -0.71, -4.05, -0.43, -4.21, -2.48, -3.53, -2.65, -2.95, -5.32, -2.49, -5.03, -3.56, -0.35, -4.63, -3.0, -1.41, -5.06, -0.75, -3.25, -0.39, -3.25, -2.51]</script>
+<script type="application/json" id="d-cfg">{"impliedMultiple": 5.2, "lossShare": 72.4, "medianReturn": -1.5, "pUp": 0.0, "predicted": "DOWN", "stop": 1.5, "strike": 3.0, "tailMass": 19.09, "winRate": 27.6}</script>
+<script>
+/* futures-scan dashboard — all values come from the embedded JSON payloads. */
+(function () {
+  'use strict';
+  var INK = '#14130f', SOFT = '#6b6860', FAINT = '#9a978c', LINE = '#d9d5cc',
+      GREEN = '#2c7a4b', RED = '#bf2f38', GRAY = '#8f8c80', CARD = '#fbfaf7', ALT = '#f2efe7';
+
+  function J(id) {
+    var el = document.getElementById(id);
+    if (!el) return null;
+    try { return JSON.parse(el.textContent); } catch (e) { return null; }
+  }
+  var CURVE = J('d-curve') || [], TRADES = J('d-trades') || [], WINS = J('d-wins') || [],
+      RIDGE = J('d-ridge') || {}, GRAPH = J('d-graph') || { nodes: [], edges: [], hubs: [] },
+      CHANGE = J('d-change') || [], CFG = J('d-cfg') || {};
+
+  var PIXEL = "'Silkscreen', monospace", MONO = "'IBM Plex Mono', monospace";
+
+  /* ------------------------------------------------------------------ clock */
+  setInterval(function () {
+    var el = document.getElementById('utc-clock');
+    if (el) el.textContent = new Date().toUTCString().split(' ')[4] + ' UTC';
+  }, 1000);
+
+  /* -------------------------------------------------- cumulative pnl curve */
+  (function () {
+    var svg = document.getElementById('pnl-curve');
+    if (!svg || !CURVE.length) return;
+    var W = 320, H = 132, pad = 6;
+    var data = CURVE.length === 1 ? [0, CURVE[0]] : [0].concat(CURVE);
+    var min = Math.min.apply(null, data), max = Math.max.apply(null, data);
+    var span = (max - min) || 1;
+    var xs = function (i) { return pad + (i / (data.length - 1)) * (W - pad * 2); };
+    var ys = function (v) { return H - pad - ((v - min) / span) * (H - pad * 2 - 10); };
+    var line = '', area = 'M ' + xs(0).toFixed(1) + ' ' + (H - pad).toFixed(1) + ' L ' + xs(0).toFixed(1) + ' ' + ys(data[0]).toFixed(1);
+    for (var i = 0; i < data.length; i++) {
+      var x = xs(i).toFixed(1), y = ys(data[i]).toFixed(1);
+      if (i === 0) { line = 'M ' + x + ' ' + y; }
+      else {
+        var px = xs(i - 1).toFixed(1);
+        line += ' L ' + x + ' ' + ys(data[i - 1]).toFixed(1) + ' L ' + x + ' ' + y;
+        area += ' L ' + x + ' ' + ys(data[i - 1]).toFixed(1) + ' L ' + x + ' ' + y;
+      }
+    }
+    area += ' L ' + xs(data.length - 1).toFixed(1) + ' ' + (H - pad).toFixed(1) + ' Z';
+    var last = data[data.length - 1];
+    var col = last >= 0 ? GREEN : RED;
+    var zeroY = ys(0).toFixed(1);
+    svg.innerHTML =
+      '<line x1="' + pad + '" y1="' + zeroY + '" x2="' + (W - pad) + '" y2="' + zeroY + '" stroke="' + LINE + '" stroke-dasharray="2,3"/>' +
+      '<path d="' + area + '" fill="' + (last >= 0 ? 'rgba(44,122,75,0.16)' : 'rgba(191,47,56,0.14)') + '"/>' +
+      '<path d="' + line + '" fill="none" stroke="' + col + '" stroke-width="1.4" vector-effect="non-scaling-stroke"/>' +
+      '<circle cx="' + xs(data.length - 1).toFixed(1) + '" cy="' + ys(last).toFixed(1) + '" r="2.4" fill="' + col + '"/>';
+  })();
+
+  /* -------------------------------------------------------- top-wins pager */
+  (function () {
+    if (!WINS.length) return;
+    var dots = document.getElementById('pager-dots');
+    var idx = 0;
+    function set(html, id) { var el = document.getElementById(id); if (el) el.innerHTML = html; }
+    function render() {
+      var w = WINS[idx];
+      set('&times;' + w.multiple.toFixed(3), 'win-mult');
+      set('+' + w.pnl_pct.toFixed(2) + '%', 'win-plus');
+      set(w.entry_time_short + ' · ' + w.short + ' · ' + w.exit_reason.toUpperCase() + ' · ' + w.bars_held + ' BARS', 'win-meta');
+      set(Number(w.entry_price).toPrecision(6).replace(/\.?0+$/, ''), 'win-entry');
+      set(Number(w.exit_price).toPrecision(6).replace(/\.?0+$/, ''), 'win-exit');
+      var pnl = document.getElementById('win-pnl');
+      if (pnl) { pnl.textContent = (w.pnl_usdt >= 0 ? '+' : '') + w.pnl_usdt.toFixed(2) + ' USDT'; pnl.className = w.pnl_usdt >= 0 ? 'pos' : 'neg'; }
+      var pager = document.getElementById('wins-pager');
+      if (pager) pager.textContent = (idx + 1) + ' / ' + WINS.length;
+      if (dots) dots.innerHTML = WINS.map(function (_, i) { return '<i class="' + (i === idx ? 'on' : '') + '" data-i="' + i + '"></i>'; }).join('');
+    }
+    render();
+    if (dots) dots.addEventListener('click', function (e) {
+      var i = e.target && e.target.getAttribute('data-i');
+      if (i !== null && i !== undefined) { idx = +i; render(); }
+    });
+    if (WINS.length > 1) setInterval(function () { idx = (idx + 1) % WINS.length; render(); }, 3800);
+  })();
+
+  /* ---------------------------------------------------- probability lattice */
+  (function () {
+    var cv = document.getElementById('lattice');
+    if (!cv || !TRADES.length) return;
+    var ctx = cv.getContext('2d');
+    var ROWS = 6, TIERS = 9, BINS = 7, H = 348;
+    var W = 800, SP = 40, cx = 0, topY = 58, botY = 196, histTop = 214, histBot = 300;
+    var counts = new Array(BINS).fill(0), greens = new Array(BINS).fill(0);
+    var balls = [], order = [], cursor = 0, landed = 0, wins = 0, conv = [];
+
+    function binFor(r) {
+      var b = Math.sign(r) * Math.round(Math.abs(r));
+      return Math.max(-3, Math.min(3, b));
+    }
+    function resize() {
+      var rect = cv.parentNode.getBoundingClientRect();
+      W = Math.max(640, Math.floor(rect.width));
+      SP = Math.min(104, Math.max(40, (W - 160) / (BINS + 1.1)));
+      cx = W / 2;
+      var dpr = window.devicePixelRatio || 1;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    function reset() {
+      counts.fill(0); greens.fill(0); balls = []; cursor = 0; landed = 0; wins = 0; conv = [];
+      order = TRADES.slice();
+    }
+    function spawn() {
+      if (cursor >= order.length) return;
+      var t = order[cursor++];
+      var target = binFor(t.pnl_pct);
+      var rights = target + 3;
+      var moves = [];
+      for (var i = 0; i < ROWS; i++) moves.push(i < rights ? 1 : -1);
+      for (var i = moves.length - 1; i > 0; i--) { var j = (Math.random() * (i + 1)) | 0; var tmp = moves[i]; moves[i] = moves[j]; moves[j] = tmp; }
+      // spread the 6 real decisions over 9 peg tiers (3 pass-through tiers)
+      var pad = [2, 5, 8], full = [], mi = 0;
+      for (var i = 0; i < TIERS; i++) full.push(pad.indexOf(i) >= 0 ? 0 : moves[mi++]);
+      moves = full;
+      balls.push({ t: t, bin: target, moves: moves, p: 0, trail: [], rot: Math.random() * 6, done: false });
+    }
+    function ballPos(b, p) {
+      var rowH = (botY - topY) / TIERS;
+      var stage = Math.min(TIERS, Math.floor(p));
+      var frac = p - stage;
+      var off = 0;
+      for (var i = 0; i < Math.min(stage, TIERS); i++) off += b.moves[i];
+      var x = cx + off * SP / 2;
+      var y = topY + Math.min(p, TIERS) * rowH;
+      if (stage < TIERS) x += b.moves[stage] * (SP / 2) * frac;
+      if (p > TIERS) y = botY + (p - TIERS) * rowH * 1.35;
+      return { x: x, y: y };
+    }
+    function drawStatic() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = ALT; ctx.fillRect(0, 0, cx - SP / 2, H - 26);
+      ctx.fillStyle = 'rgba(44,122,75,0.07)'; ctx.fillRect(cx - SP / 2, 0, W - cx + SP / 2, H - 26);
+      // funnel
+      ctx.strokeStyle = INK; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 16, 16); ctx.lineTo(cx + 16, 16); ctx.lineTo(cx + 3, 40); ctx.lineTo(cx + 3, 50);
+      ctx.lineTo(cx - 3, 50); ctx.lineTo(cx - 3, 40); ctx.closePath(); ctx.stroke();
+      // breakeven line
+      ctx.save();
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = SOFT;
+      ctx.beginPath(); ctx.moveTo(cx - SP / 2, 8); ctx.lineTo(cx - SP / 2, histBot + 4); ctx.stroke();
+      ctx.restore();
+      // labels
+      ctx.font = '9px ' + MONO; ctx.textAlign = 'left';
+      ctx.fillStyle = FAINT; ctx.fillText('LOSS · ' + (CFG.lossShare || 0).toFixed(1) + '%', 14, 22);
+      ctx.fillStyle = GREEN; ctx.textAlign = 'right'; ctx.fillText('PROFIT · ' + (CFG.winRate || 0).toFixed(1) + '%', W - 14, 22);
+      // breakeven box
+      ctx.textAlign = 'center';
+      var bx = cx - SP / 2, tw = 62;
+      ctx.fillStyle = CARD; ctx.fillRect(bx - tw / 2, 10, tw, 13);
+      ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.strokeRect(bx - tw / 2, 10, tw, 13);
+      ctx.fillStyle = INK; ctx.font = '8px ' + MONO; ctx.fillText('BREAKEVEN', bx, 19.5);
+      // pegs
+      var rowH = (botY - topY) / TIERS;
+      ctx.fillStyle = LINE;
+      for (var r = 0; r < TIERS; r++) {
+        var n = Math.min(r + 2, BINS + 2), y = topY + (r + 0.5) * rowH;
+        for (var c = 0; c < n; c++) {
+          var x = cx + (c - (n - 1) / 2) * SP;
+          ctx.beginPath(); ctx.arc(x, y, 2.1, 0, 6.2832); ctx.fill();
+        }
+      }
+      // quincunx caption
+      ctx.textAlign = 'left'; ctx.fillStyle = FAINT; ctx.font = '8px ' + MONO;
+      ctx.fillText('QUINCUNX · ' + TIERS + ' TIERS · BIN 1.00%', 14, 40);
+    }
+    function drawHist() {
+      var max = Math.max(1, Math.max.apply(null, counts));
+      for (var i = 0; i < BINS; i++) {
+        var bin = i - 3;
+        var w = SP * 0.78;
+        var x = cx + bin * SP - w / 2;
+        var h = (counts[i] / max) * (histBot - histTop);
+        var y = histBot - h;
+        ctx.fillStyle = bin > 0 ? 'rgba(44,122,75,0.75)' : (bin === 0 ? 'rgba(143,140,128,0.55)' : 'rgba(143,140,128,0.7)');
+        if (h > 0.5) ctx.fillRect(x, y, w, h);
+        ctx.font = '8px ' + MONO; ctx.textAlign = 'center';
+        if (counts[i]) { ctx.fillStyle = SOFT; ctx.fillText(String(counts[i]), x + w / 2, y - 3); }
+        ctx.fillStyle = FAINT;
+        ctx.fillText((bin > 0 ? '+' : '') + bin, x + w / 2, histBot + 11);
+      }
+      ctx.strokeStyle = LINE; ctx.beginPath();
+      ctx.moveTo(cx - 3.6 * SP, histBot + 0.5); ctx.lineTo(cx + 3.6 * SP, histBot + 0.5); ctx.stroke();
+      ctx.textAlign = 'left'; ctx.fillStyle = FAINT; ctx.font = '8px ' + MONO;
+      ctx.fillText('TRADE RETURN BIN (%)', cx - 3.6 * SP, histBot + 24);
+    }
+    function drawConv() {
+      if (conv.length < 2) return;
+      var w = 150, h = 42, x0 = W - w - 14, y0 = 34;
+      ctx.fillStyle = CARD; ctx.fillRect(x0, y0, w, h);
+      ctx.strokeStyle = LINE; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+      var lo = 0, hi = 100;
+      ctx.beginPath();
+      for (var i = 0; i < conv.length; i++) {
+        var x = x0 + 4 + (i / (conv.length - 1)) * (w - 40);
+        var y = y0 + h - 6 - ((conv[i] - lo) / (hi - lo)) * (h - 12);
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.strokeStyle = INK; ctx.lineWidth = 1.1; ctx.stroke();
+      ctx.save(); ctx.setLineDash([2, 2]); ctx.strokeStyle = LINE;
+      var ty = y0 + h - 6 - ((CFG.winRate || 0) / 100) * (h - 12);
+      ctx.beginPath(); ctx.moveTo(x0 + 4, ty); ctx.lineTo(x0 + w - 34, ty); ctx.stroke(); ctx.restore();
+      ctx.font = '8px ' + MONO; ctx.textAlign = 'left'; ctx.fillStyle = GREEN;
+      ctx.fillText(conv[conv.length - 1].toFixed(1) + '%', x0 + w - 32, y0 + h / 2 + 3);
+      ctx.fillStyle = FAINT; ctx.fillText('RUNNING GREEN RATE', x0 + 4, y0 - 4);
+    }
+    function frame() {
+      drawStatic();
+      for (var i = balls.length - 1; i >= 0; i--) {
+        var b = balls[i];
+        b.p += 0.065;
+        b.rot += 0.16;
+        var pos = ballPos(b, b.p);
+        b.trail.push(pos);
+        if (b.trail.length > 14) b.trail.shift();
+        for (var k = 0; k < b.trail.length; k++) {
+          var a = (k / b.trail.length) * 0.28;
+          ctx.fillStyle = 'rgba(20,19,15,' + a.toFixed(3) + ')';
+          ctx.beginPath(); ctx.arc(b.trail[k].x, b.trail[k].y, 1.3, 0, 6.2832); ctx.fill();
+        }
+        ctx.save();
+        ctx.translate(pos.x, pos.y); ctx.rotate(b.rot);
+        ctx.fillStyle = INK; ctx.fillRect(-2.1, -2.1, 4.2, 4.2);
+        ctx.restore();
+        if (pos.y > histBot - 6) {
+          var bi = b.bin + 3;
+          counts[bi]++; if (b.t.win) { greens[bi]++; wins++; }
+          landed++;
+          conv.push(100 * wins / landed);
+          if (conv.length > 120) conv.shift();
+          balls.splice(i, 1);
+        }
+      }
+      drawHist();
+      drawConv();
+      requestAnimationFrame(frame);
+    }
+    resize(); reset();
+    window.addEventListener('resize', function () { resize(); });
+    setInterval(function () {
+      if (cursor >= order.length && balls.length === 0) { reset(); return; }
+      if (balls.length > 26) return;
+      spawn();
+    }, 130);
+    requestAnimationFrame(frame);
+  })();
+
+  /* ------------------------------------------------------------ tail ridge */
+  (function () {
+    var svg = document.getElementById('ridge');
+    if (!svg) return;
+    var syms = Object.keys(RIDGE);
+    if (!syms.length) return;
+    var all = [];
+    syms.forEach(function (s) { all = all.concat(RIDGE[s]); });
+    var mean = all.reduce(function (a, b) { return a + b; }, 0) / all.length;
+    var sd = Math.sqrt(all.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / Math.max(1, all.length - 1)) || 1;
+    var lo = mean - 3.6 * sd, hi = mean + 3.6 * sd;
+    var strike = CFG.strike || 3;
+    if (strike > hi) hi = strike + 0.4 * sd;
+
+    var W = 1080, H = 460, L = 132, R = 92, TOP = 46, BOT = 74;
+    var plotW = W - L - R;
+    // sort: biggest tail share at the back
+    syms.sort(function (a, b) {
+      var f = function (v) { return RIDGE[v].filter(function (x) { return x >= strike - 1e-9; }).length / RIDGE[v].length; };
+      return f(b) - f(a);
+    });
+    var rows = syms.length + 1; // + aggregate ridge in front
+    var dx = Math.min(13, (plotW * 0.26) / Math.max(1, rows));
+    var dy = Math.min(19, (H - TOP - BOT) * 0.70 / Math.max(1, rows));
+    var baseY = H - BOT;
+    var ridgeW = plotW - dx * rows;
+    var amp = Math.min(56, dy * 3.6);
+
+    function xOf(v, i) { return L + dx * i + ((v - lo) / (hi - lo)) * ridgeW; }
+    function yBase(i) { return baseY - dy * i; }
+
+    function density(vals) {
+      var n = 96, out = [], bw = Math.max(0.28 * sd, 0.16);
+      for (var i = 0; i < n; i++) {
+        var x = lo + (i / (n - 1)) * (hi - lo), s = 0;
+        for (var k = 0; k < vals.length; k++) {
+          var z = (x - vals[k]) / bw;
+          s += Math.exp(-0.5 * z * z);
+        }
+        out.push({ x: x, y: s / (vals.length * bw) });
+      }
+      var mx = out.reduce(function (a, p) { return Math.max(a, p.y); }, 0) || 1;
+      out.forEach(function (p) { p.y /= mx; });
+      return out;
+    }
+
+    var parts = [];
+    // back to front: index rows-1 (farthest) .. 0 (front). aggregate = index 0
+    var series = syms.map(function (s) { return { name: s.split('/')[0].toLowerCase(), vals: RIDGE[s], agg: false }; });
+    series.push({ name: 'all trades', vals: all, agg: true });
+    // draw farthest first
+    for (var si = series.length - 1; si >= 0; si--) {
+      var i = si; // stack index: 0 = front (aggregate is last -> index series.length-1?)
+      var item = series[si];
+      var depth = item.agg ? 0 : (si + 1);
+      var d = density(item.vals);
+      var by = yBase(depth), a = item.agg ? amp * 1.25 : amp;
+      var pts = d.map(function (p) { return [xOf(p.x, depth), by - p.y * a]; });
+      var path = 'M ' + xOf(lo, depth).toFixed(1) + ' ' + by.toFixed(1);
+      pts.forEach(function (p) { path += ' L ' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+      path += ' L ' + xOf(hi, depth).toFixed(1) + ' ' + by.toFixed(1) + ' Z';
+      parts.push({ z: depth, html:
+        '<path d="' + path + '" fill="' + (item.agg ? 'rgba(20,19,15,0.18)' : 'rgba(143,140,128,0.16)') + '" stroke="' + INK + '" stroke-width="' + (item.agg ? 1.1 : 0.6) + '" stroke-opacity="' + (item.agg ? 0.85 : 0.55) + '"/>' });
+      // red tail beyond strike
+      var tail = pts.filter(function (p) { return p[0] >= xOf(strike, depth); });
+      if (tail.length > 1) {
+        var tp = 'M ' + tail[0][0].toFixed(1) + ' ' + by.toFixed(1);
+        tail.forEach(function (p) { tp += ' L ' + p[0].toFixed(1) + ' ' + p[1].toFixed(1); });
+        tp += ' L ' + tail[tail.length - 1][0].toFixed(1) + ' ' + by.toFixed(1) + ' Z';
+        parts.push({ z: depth, html: '<path d="' + tp + '" fill="rgba(191,47,56,0.45)" stroke="' + RED + '" stroke-width="0.6"/>' });
+      }
+      parts.push({ z: depth, html: '<text class="axis-txt" x="' + (xOf(lo, depth) - 6).toFixed(1) + '" y="' + (by - 1).toFixed(1) + '" text-anchor="end">' + item.name + '</text>' });
+    }
+    parts.sort(function (a, b) { return b.z - a.z; });
+    var html = parts.map(function (p) { return p.html; }).join('');
+
+    // strike diagonal
+    var sx0 = xOf(strike, series.length - 1 + 1), sy0 = yBase(series.length) - amp - 8;
+    var sx1 = xOf(strike, 0), sy1 = yBase(0) + 8;
+    html += '<line x1="' + sx0.toFixed(1) + '" y1="' + sy0.toFixed(1) + '" x2="' + sx1.toFixed(1) + '" y2="' + sy1.toFixed(1) + '" stroke="' + INK + '" stroke-dasharray="5,4" stroke-width="1"/>';
+    html += '<g><rect x="' + (sx0 - 34).toFixed(1) + '" y="' + (sy0 - 15).toFixed(1) + '" width="74" height="14" fill="' + CARD + '" stroke="' + INK + '" stroke-width="0.7"/>' +
+      '<text class="boxlabel" x="' + (sx0 + 3).toFixed(1) + '" y="' + (sy0 - 5).toFixed(1) + '" text-anchor="middle" fill="' + INK + '">STRIKE +' + strike.toFixed(0) + '%</text></g>';
+
+    // annotation box
+    var im = CFG.impliedMultiple ? ('x' + CFG.impliedMultiple.toFixed(1)) : 'n/a';
+    var ax = L + 6, ay = TOP + 4;
+    html += '<g><rect x="' + ax + '" y="' + ay + '" width="164" height="46" fill="' + CARD + '" stroke="' + INK + '" stroke-width="0.7"/>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 15) + '" fill="' + INK + '">P(&ge;STRIKE) ' + (CFG.tailMass || 0).toFixed(2) + '%</text>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 28) + '" fill="' + RED + '">IMPLIED ' + im + '</text>' +
+      '<text class="boxlabel" x="' + (ax + 8) + '" y="' + (ay + 41) + '" fill="' + FAINT + '">MEDIAN ' + (CFG.medianReturn || 0).toFixed(2) + '%</text></g>';
+
+    // axis ticks in sigma
+    for (var t = -3; t <= 3; t++) {
+      var v = mean + t * sd;
+      var x = xOf(v, 0);
+      html += '<line x1="' + x.toFixed(1) + '" y1="' + (baseY + 4) + '" x2="' + x.toFixed(1) + '" y2="' + (baseY + 9) + '" stroke="' + LINE + '"/>';
+      html += '<text class="axis-txt" x="' + x.toFixed(1) + '" y="' + (baseY + 20) + '" text-anchor="middle">' + (t > 0 ? '+' : '') + t + 'σ</text>';
+    }
+    html += '<line x1="' + xOf(lo, 0).toFixed(1) + '" y1="' + (baseY + 4) + '" x2="' + xOf(hi, 0).toFixed(1) + '" y2="' + (baseY + 4) + '" stroke="' + LINE + '"/>';
+    html += '<text class="axis-txt" x="' + (L - 60) + '" y="' + (TOP - 20) + '">PRICE-TARGET DENSITY · ' + syms.length + ' SYMBOLS</text>';
+    html += '<text class="axis-txt" x="' + (W - 8) + '" y="' + (TOP - 20) + '" text-anchor="end" fill="' + RED + '">TAIL ZONE · PAYOUT ' + im + '</text>';
+    svg.innerHTML = html;
+  })();
+
+  /* ------------------------------------------------------ relationship graph */
+  (function () {
+    var el = document.getElementById('graph');
+    if (!el || typeof d3 === 'undefined' || !GRAPH.nodes.length) return;
+    var W = 960, H = 470;
+    var hubMeta = { BEAR_CLUSTER: { x: 0.20, y: 0.42, c: RED }, HUB_PRIME: { x: 0.50, y: 0.72, c: INK }, CATALYST_RING: { x: 0.78, y: 0.44, c: GRAY } };
+    var hubs = GRAPH.hubs.map(function (h) {
+      var m = hubMeta[h.id] || { x: 0.5, y: 0.5, c: GRAY };
+      return { id: h.id, label: h.label, hub: true, color: m.c, count: h.count, fx: W * m.x, fy: H * m.y };
+    });
+    var nodes = GRAPH.nodes.map(function (n) {
+      return {
+        id: n.symbol, label: n.short, hub: false, hit: n.hit,
+        color: (n.momentum === null ? GRAY : (n.momentum > 0 ? GREEN : RED)),
+        parent: n.hub, r: n.hit ? 4.6 : 3.1
+      };
+    });
+    var all = hubs.concat(nodes);
+    var byId = new Map(all.map(function (n) { return [n.id, n]; }));
+    var links = [];
+    nodes.forEach(function (n) { if (byId.has(n.parent)) links.push({ source: n.id, target: n.parent, w: 1, spoke: true }); });
+    var drawn = GRAPH.edges.slice().sort(function (a, b) { return Math.abs(b.rho) - Math.abs(a.rho); }).slice(0, 60);
+    drawn.forEach(function (e) {
+      if (byId.has(e.a) && byId.has(e.b)) links.push({ source: e.a, target: e.b, w: Math.abs(e.rho), spoke: false });
+    });
+
+    var sim = d3.forceSimulation(all)
+      .force('link', d3.forceLink(links).id(function (d) { return d.id; })
+        .distance(function (l) { return l.spoke ? 68 : 130; })
+        .strength(function (l) { return l.spoke ? 0.95 : 0.02; }))
+      .force('charge', d3.forceManyBody().strength(function (d) { return d.hub ? -900 : -58; }))
+      .force('collide', d3.forceCollide(function (d) { return (d.hub ? 26 : d.r + 11); }))
+      .force('x', d3.forceX(W / 2).strength(0.02))
+      .force('y', d3.forceY(H / 2).strength(0.03))
+      .alphaDecay(0.02)
+      .stop();
+
+    var svg = d3.select(el);
+    var gLink = svg.append('g'), gPath = svg.append('g'), gNode = svg.append('g');
+
+    var linkSel = gLink.selectAll('line').data(links).enter().append('line')
+      .attr('stroke', function (d) { return d.spoke ? '#cfcbc0' : '#b9b5a9'; })
+      .attr('stroke-width', function (d) { return d.spoke ? 0.6 : 0.5 + d.w; })
+      .attr('stroke-opacity', function (d) { return d.spoke ? 0.7 : 0.35; });
+
+    var nodeSel = gNode.selectAll('g').data(all).enter().append('g');
+    nodeSel.append('circle')
+      .attr('r', function (d) { return d.hub ? 9 + Math.min(13, Math.sqrt(d.count) * 3) : d.r; })
+      .attr('fill', function (d) { return d.hub ? d.color : d.color; })
+      .attr('opacity', function (d) { return d.hub ? 1 : 0.85; });
+    var labelled = nodeSel;
+    labelled.append('rect').attr('class', 'nl-bg').attr('height', 11).attr('rx', 1)
+      .attr('fill', CARD).attr('fill-opacity', function (d) { return d.hub || d.hit ? 1 : 0.65; })
+      .attr('stroke', function (d) { return d.hub ? INK : LINE; })
+      .attr('stroke-opacity', function (d) { return d.hub || d.hit ? 1 : 0.5; }).attr('stroke-width', 0.6);
+    labelled.append('text').attr('class', 'nl-tx')
+      .attr('font-size', function (d) { return d.hub ? 8 : 6; })
+      .attr('font-family', MONO)
+      .attr('fill', function (d) { return d.hub || d.hit ? SOFT : FAINT; })
+      .text(function (d) { return d.hub ? d.label : d.label; });
+
+    var ticks = 0, t0 = performance.now(), running = true;
+    function paint() {
+      linkSel.attr('x1', function (d) { return d.source.x; }).attr('y1', function (d) { return d.source.y; })
+        .attr('x2', function (d) { return d.target.x; }).attr('y2', function (d) { return d.target.y; });
+      nodeSel.attr('transform', function (d) { return 'translate(' + d.x + ',' + d.y + ')'; });
+      labelled.select('text.nl-tx')
+        .attr('x', function (d) { return d.hub ? 0 : 7; })
+        .attr('y', function (d) { return d.hub ? 3.5 : 3; })
+        .attr('text-anchor', function (d) { return d.hub ? 'middle' : 'start'; });
+      labelled.select('rect.nl-bg').each(function (d) {
+        var tx = this.parentNode.querySelector('text.nl-tx');
+        var w = 8;
+        try { w = tx.getComputedTextLength() + 6; } catch (e) { w = d.label.length * 5 + 6; }
+        d3.select(this)
+          .attr('width', w)
+          .attr('x', d.hub ? -w / 2 : 5)
+          .attr('y', d.hub ? -5.5 : -5);
+      });
+      // median path through the hubs
+      var hp = hubs.slice().sort(function (a, b) { return a.x - b.x; });
+      if (hp.length === 3) {
+        var d0 = 'M ' + hp[0].x + ' ' + hp[0].y +
+          ' Q ' + ((hp[0].x + hp[1].x) / 2) + ' ' + (Math.min(hp[0].y, hp[1].y) - 60) + ' ' + hp[1].x + ' ' + hp[1].y +
+          ' Q ' + ((hp[1].x + hp[2].x) / 2) + ' ' + (Math.min(hp[1].y, hp[2].y) - 60) + ' ' + hp[2].x + ' ' + hp[2].y;
+        var p = gPath.selectAll('path.median').data([d0]);
+        p.enter().append('path').attr('class', 'median').merge(p)
+          .attr('d', function (d) { return d; })
+          .attr('fill', 'none').attr('stroke', INK).attr('stroke-width', 2)
+          .attr('stroke-dasharray', '7,5').attr('opacity', 0.75);
+        var lx = hp[2].x + 26, ly = hp[2].y - 34;
+        var g = gPath.selectAll('g.endlab').data([1]);
+        var ge = g.enter().append('g').attr('class', 'endlab');
+        ge.append('line'); ge.append('rect'); ge.append('text');
+        var gm = gPath.select('g.endlab');
+        gm.select('line').attr('x1', hp[2].x).attr('y1', hp[2].y).attr('x2', lx - 4).attr('y2', ly + 7)
+          .attr('stroke', INK).attr('stroke-width', 1.2);
+        gm.select('rect').attr('x', lx).attr('y', ly).attr('width', 62).attr('height', 15)
+          .attr('fill', CARD).attr('stroke', INK).attr('stroke-width', 0.8);
+        gm.select('text').attr('x', lx + 31).attr('y', ly + 10.5).attr('text-anchor', 'middle')
+          .attr('font-size', 8).attr('font-family', MONO)
+          .attr('fill', CFG.predicted === 'UP' ? GREEN : RED)
+          .text((CFG.predicted === 'UP' ? '▲ ' : '▼ ') + (CFG.pUp || 0).toFixed(0) + '% UP');
+      }
+    }
+    var counters = document.getElementById('graph-counters');
+    var iterSec = document.getElementById('iter-sec');
+    var convBar = document.getElementById('conv-bar'), convPct = document.getElementById('conv-pct');
+    function step() {
+      if (!running) return;
+      for (var i = 0; i < 3; i++) { sim.tick(); ticks++; }
+      paint();
+      var a = sim.alpha(), progress = Math.min(1, Math.max(0, (1 - (a - 0.001) / 1)));
+      if (convBar) convBar.style.width = (progress * 100).toFixed(0) + '%';
+      if (convPct) convPct.textContent = (progress * 100).toFixed(0) + '%';
+      if (counters) counters.textContent = 'nodes ' + all.length + ' · edges ' + GRAPH.edges.length +
+        ' · signal ' + ((GRAPH.edges.length ? d3.mean(GRAPH.edges, function (e) { return Math.abs(e.rho); }) * 100 : 0)).toFixed(1) + '% · iter ' + ticks;
+      var dt = (performance.now() - t0) / 1000;
+      if (iterSec) iterSec.textContent = dt > 0 ? Math.round(ticks / dt).toLocaleString() : '—';
+      if (a < 0.02 || ticks > 900) { running = false; if (convBar) convBar.style.width = '100%'; if (convPct) convPct.textContent = '100%'; return; }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  })();
+
+  /* ------------------------------------------------------- 24h change hist */
+  (function () {
+    var c = document.getElementById('mini-hist');
+    if (!c || !CHANGE.length) return;
+    var min = Math.min.apply(null, CHANGE), max = Math.max.apply(null, CHANGE);
+    var n = 12, range = (max - min) || 1, buckets = new Array(n).fill(0);
+    CHANGE.forEach(function (v) { buckets[Math.min(n - 1, Math.floor(((v - min) / range) * n))]++; });
+    var mx = Math.max.apply(null, buckets) || 1;
+    c.innerHTML = buckets.map(function (k, i) {
+      var mid = min + ((i + 0.5) / n) * range;
+      return '<div class="bar ' + (mid >= 0 ? 'pos' : 'neg') + '" style="height:' + Math.max(2, (k / mx) * 54) + 'px" title="' + mid.toFixed(1) + '% · ' + k + '"></div>';
+    }).join('');
+  })();
+})();
+</script>
+</body>
+</html>
