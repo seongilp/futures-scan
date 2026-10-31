@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AKE/USDT:USDT replay · futures-scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root {
+  --bg: #f3f1eb;
+  --bg-dot: #dedbd0;
+  --card: #fbfaf7;
+  --card-alt: #f7f5ef;
+  --ink: #14130f;
+  --ink-soft: #6b6860;
+  --ink-faint: #9a978c;
+  --line: #d9d5cc;
+  --line-soft: #e8e5dc;
+  --green: #2c7a4b;
+  --green-soft: rgba(44, 122, 75, 0.16);
+  --red: #bf2f38;
+  --red-soft: rgba(191, 47, 56, 0.16);
+  --gray: #8f8c80;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--bg-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  color: var(--ink);
+  font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+a:hover { border-bottom-color: var(--ink); }
+.wrap { max-width: 1680px; margin: 0 auto; padding: 14px 18px 46px; }
+
+/* ---------- primitives ---------- */
+.pixel { font-family: 'Silkscreen', 'IBM Plex Mono', monospace; letter-spacing: 0.01em; }
+.label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 9px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.label-ink { color: var(--ink-soft); }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 10px 12px;
+  position: relative;
+}
+.card.flush { padding: 0; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--card);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.chip b { font-weight: 600; color: var(--ink); letter-spacing: 0.06em; }
+.chip.live { color: var(--green); border-color: rgba(44,122,75,0.45); background: var(--green-soft); }
+.chip.accent { border-color: var(--red); color: var(--red); }
+.chip.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+.pos { color: var(--green); }
+.neg { color: var(--red); }
+.neu { color: var(--gray); }
+.muted { color: var(--ink-faint); }
+
+/* ---------- header ---------- */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  padding: 8px 12px; margin-bottom: 10px; gap: 10px; flex-wrap: wrap;
+}
+.header .brand { display: flex; align-items: center; gap: 10px; }
+.header .logo {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--card-alt);
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+}
+.header .title { font-size: 14px; letter-spacing: 0.06em; }
+.header .title .accent { color: var(--red); }
+.header .meta-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+/* ---------- section frame ---------- */
+.section {
+  border: 1px solid var(--line); border-radius: 3px; background: var(--card);
+  margin-top: 10px; overflow: hidden;
+}
+.section-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft); flex-wrap: wrap;
+}
+.section-head h2 {
+  margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 7px;
+}
+.section-head h2 .bullet { width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.section-head h2 .sub { color: var(--ink-faint); font-weight: 400; }
+.section-head .hint {
+  color: var(--ink-faint); font-size: 9px; letter-spacing: 0.1em; text-transform: lowercase;
+}
+.section-body { display: grid; grid-template-columns: 196px 1fr; }
+.section-body.rev { grid-template-columns: 1fr 196px; }
+.section-body > .pane { padding: 10px 12px; min-width: 0; }
+.section-body > .stat-col { border-right: 1px solid var(--line-soft); }
+.section-body.rev > .stat-col { border-right: none; border-left: 1px solid var(--line-soft); }
+
+/* ---------- dotted-leader stat column ---------- */
+.stat-col { padding: 10px 12px; display: flex; flex-direction: column; }
+.stat-col .col-title {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 7px;
+}
+.srow {
+  display: flex; align-items: baseline; gap: 4px;
+  font-size: 10.5px; line-height: 1.85; color: var(--ink-soft);
+}
+.srow .k { text-transform: lowercase; letter-spacing: 0.03em; white-space: nowrap; }
+.srow .lead {
+  flex: 1; border-bottom: 1px dotted var(--line); transform: translateY(-3px); min-width: 8px;
+}
+.srow .v { color: var(--ink); font-weight: 500; white-space: nowrap; }
+.srow.rule { border-top: 1px solid var(--line-soft); margin-top: 6px; padding-top: 5px; }
+.stat-note {
+  margin-top: auto; padding-top: 12px; font-size: 9px; line-height: 1.6;
+  color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em;
+}
+
+/* ---------- hero ---------- */
+.hero { display: grid; grid-template-columns: 1.45fr 1fr; gap: 10px; }
+.hero-left { display: grid; grid-template-columns: 196px 1fr; }
+.hero-main { padding: 10px 14px; min-width: 0; }
+.hero-num { font-size: 58px; line-height: 1.05; letter-spacing: -0.01em; }
+.hero-unit { font-size: 20px; color: var(--ink-faint); }
+.chiprow { display: flex; gap: 5px; flex-wrap: wrap; margin: 8px 0; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 10px; }
+.tile {
+  border: 1px solid var(--line-soft); border-radius: 2px; padding: 6px 8px;
+  background: var(--card-alt);
+}
+.tile.sel { border-color: var(--ink); background: var(--card); box-shadow: inset 0 0 0 1px var(--line-soft); }
+.tile .sym { font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+.tile .val { font-size: 13px; margin-top: 1px; }
+.tile .meta { font-size: 8.5px; color: var(--ink-faint); letter-spacing: 0.05em; }
+.hero-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 10px; font-size: 9px; color: var(--ink-faint); letter-spacing: 0.08em;
+}
+
+/* ---------- top wins ---------- */
+.wins { display: flex; flex-direction: column; height: 100%; }
+.wins-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+}
+.wins-body { padding: 10px 12px; display: grid; grid-template-columns: 1fr 1.15fr; gap: 10px; }
+.win-mult { font-size: 40px; line-height: 1; }
+.win-plus { font-size: 14px; color: var(--ink-faint); vertical-align: super; }
+.win-flow { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; }
+.win-flow .arrow { color: var(--ink-faint); }
+.pager { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+.pager i { width: 14px; height: 3px; background: var(--line); border-radius: 2px; cursor: pointer; }
+.pager i.on { background: var(--ink); }
+
+/* ---------- viz ---------- */
+svg { display: block; width: 100%; height: auto; }
+.axis-txt { font-size: 8px; fill: var(--ink-faint); letter-spacing: 0.08em; }
+.boxlabel { font-size: 8px; letter-spacing: 0.1em; }
+
+/* ---------- table ---------- */
+table { border-collapse: collapse; width: 100%; font-size: 11px; }
+th, td { text-align: right; padding: 4px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th {
+  text-transform: uppercase; letter-spacing: 0.1em; font-size: 8.5px;
+  color: var(--ink-faint); font-weight: 500; border-bottom: 1px solid var(--line);
+}
+tbody tr:hover td { background: var(--card-alt); }
+.scroll-x { overflow-x: auto; }
+
+/* ---------- footer ---------- */
+.statusbar {
+  margin-top: 10px;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 3px;
+  background: var(--card);
+  font-size: 8.5px; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-faint);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.statusbar b { color: var(--ink-soft); font-weight: 500; }
+
+/* ---------- controls ---------- */
+button.ctrl {
+  font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
+  background: var(--card); border: 1px solid var(--line); border-radius: 2px;
+  padding: 4px 9px; cursor: pointer; color: var(--ink-soft);
+}
+button.ctrl:hover { background: var(--card-alt); color: var(--ink); }
+button.ctrl.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* ---------- progress ---------- */
+.bar-track { height: 6px; background: var(--line-soft); border-radius: 1px; overflow: hidden; margin-top: 3px; }
+.bar-fill { height: 100%; background: var(--ink); }
+
+@media (max-width: 1400px) {
+  .hero { grid-template-columns: 1fr; }
+}
+@media (max-width: 1100px) {
+  .section-body, .section-body.rev, .hero-left { grid-template-columns: 1fr; }
+  .section-body > .stat-col, .section-body.rev > .stat-col { border: none; border-bottom: 1px solid var(--line-soft); }
+  .wins-body { grid-template-columns: 1fr; }
+  .hero-num { font-size: 44px; }
+}
+.layout { display: grid; grid-template-columns: 1fr 290px; gap: 12px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+#chart-container { width: 100%; height: 420px; }
+#vol-container { width: 100%; height: 100px; margin-top: 4px; }
+.controls { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+.speed-group button.active { background: var(--ink); color: var(--bg); }
+.panel-stat { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dotted var(--line); font-size: 11px; }
+.panel-stat:last-child { border-bottom: none; }
+.open-trade { border: 1px solid var(--line); border-radius: 2px; padding: 5px 7px; margin-top: 6px; font-size: 10px; }
+.trade-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px dotted var(--line); }
+#trade-log { max-height: 220px; overflow-y: auto; margin-top: 8px; }
+.back-link { font-size: 10px; color: var(--ink-soft); }
+#mini-lattice { width: 100%; display: block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="brand">
+      <div class="logo">▶</div>
+      <div>
+        <div class="label">FUTURES-SCAN · REPLAY · BINANCEUSDM · 1h · LAST 7 DAYS</div>
+        <div class="title pixel">AKE <span class="accent">REPLAY</span></div>
+      </div>
+    </div>
+    <div class="meta-right">
+      <a class="back-link" href="../index.html">&larr; back to scan</a>
+      <span class="chip" id="progress-chip">0 / 168</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-head">
+      <h2><span class="bullet"></span>Candle Replay <span class="sub">· AKE/USDT:USDT</span></h2>
+      <span class="hint">js engine mirrors the python strategy · every fill drops one ball</span>
+    </div>
+    <div class="section-body">
+    <div class="stat-col">
+      <div class="col-title">replay ledger</div>
+      
+      <div class="srow"><span class="k">bars</span><span class="lead"></span><span class="v ">168</span></div>
+      
+      <div class="srow"><span class="k">window</span><span class="lead"></span><span class="v ">7d</span></div>
+      
+      <div class="srow"><span class="k">timeframe</span><span class="lead"></span><span class="v ">1h</span></div>
+      
+      <div class="srow"><span class="k">last close</span><span class="lead"></span><span class="v ">0.010737</span></div>
+      
+      <div class="srow"><span class="k">window return</span><span class="lead"></span><span class="v neg">-64.18%</span></div>
+      
+      <div class="srow"><span class="k">reference fills</span><span class="lead"></span><span class="v ">6</span></div>
+      
+      <div class="srow"><span class="k">reference wins</span><span class="lead"></span><span class="v pos">2</span></div>
+      
+      <div class="srow"><span class="k">reference wr</span><span class="lead"></span><span class="v ">33.3%</span></div>
+      
+      <div class="srow"><span class="k">reference pnl</span><span class="lead"></span><span class="v neg">-30.12</span></div>
+      
+      <div class="srow"><span class="k">take profit</span><span class="lead"></span><span class="v pos">+3.0%</span></div>
+      
+      <div class="srow"><span class="k">stop loss</span><span class="lead"></span><span class="v neg">-1.5%</span></div>
+      
+      <div class="srow"><span class="k">max hold</span><span class="lead"></span><span class="v ">24 bars</span></div>
+      
+      <div class="srow"><span class="k">fee / side</span><span class="lead"></span><span class="v ">0.04%</span></div>
+      
+      <div class="srow"><span class="k">notional</span><span class="lead"></span><span class="v ">1,000</span></div>
+      
+      <div class="stat-note">one bar at a time — the same gate, replayed honestly</div>
+    </div>
+    <div class="pane">
+    <div class="controls">
+      <button class="ctrl" id="btn-play">▶ play</button>
+      <button class="ctrl" id="btn-pause">&#10073;&#10073; pause</button>
+      <button class="ctrl" id="btn-reset">&#8634; reset</button>
+      <span class="label">speed</span>
+      <span class="speed-group">
+        <button class="ctrl" data-speed="1">1x</button>
+        <button class="ctrl active" data-speed="4">4x</button>
+        <button class="ctrl" data-speed="16">16x</button>
+        <button class="ctrl" data-speed="64">64x</button>
+      </span>
+    </div>
+    <div class="layout">
+      <div>
+        <div id="chart-container"></div>
+        <div id="vol-container"></div>
+      </div>
+      <div class="card">
+        <div class="label">strategy rules</div>
+        <div style="font-size:11px; color:var(--ink-soft); margin-bottom:8px;">
+          RSI(14)&lt;30 &amp; vol&ge;3x avg(20) on close &rarr; enter next open.
+          TP +3% / SL -1.5% / max 24 bars. fee 0.04% one-way.
+        </div>
+        <div class="panel-stat"><span>closed trades</span><span id="stat-count">0</span></div>
+        <div class="panel-stat"><span>win rate</span><span id="stat-winrate">0%</span></div>
+        <div class="panel-stat"><span>realized pnl (usdt)</span><span id="stat-pnl">0.00</span></div>
+        <div class="panel-stat"><span>open position</span><span id="stat-open">none</span></div>
+        <div id="open-trade-box"></div>
+        <div class="label" style="margin-top:10px;">fill lattice</div>
+        <canvas id="mini-lattice" height="150"></canvas>
+        <div class="label" style="margin-top:10px;">trade log</div>
+        <div id="trade-log"></div>
+      </div>
+    </div>
+    </div>
+    </div>
+  </div>
+
+  <div class="statusbar">
+    <span><span class="dot pos"></span> AGENT ONLINE · MODEL RSI-VOLSPIKE-V1 · SYMBOL AKE/USDT:USDT</span>
+    <span id="parity-chip">PYTHON REFERENCE FILLS <b>6</b> · JS ENGINE MIRRORS THE PYTHON RULES</span>
+    <span>STACK <b>FUTURES-SCAN-CORE</b></span>
+  </div>
+</div>
+
+<script type="application/json" id="candles-data">[{"close": 0.029974, "high": 0.030124, "low": 0.029955, "open": 0.030041, "timestamp": 1792836000000, "volume": 7369898.0}, {"close": 0.02935, "high": 0.029488, "low": 0.029035, "open": 0.029385, "timestamp": 1792839600000, "volume": 11023971.0}, {"close": 0.029386, "high": 0.02969, "low": 0.029044, "open": 0.029055, "timestamp": 1792843200000, "volume": 9108152.0}, {"close": 0.030298, "high": 0.030805, "low": 0.030106, "open": 0.030751, "timestamp": 1792846800000, "volume": 12870061.0}, {"close": 0.030132, "high": 0.030597, "low": 0.029937, "open": 0.03041, "timestamp": 1792850400000, "volume": 10401573.0}, {"close": 0.02982, "high": 0.030031, "low": 0.028893, "open": 0.029071, "timestamp": 1792854000000, "volume": 14063062.0}, {"close": 0.029061, "high": 0.029309, "low": 0.029044, "open": 0.029215, "timestamp": 1792857600000, "volume": 5283160.0}, {"close": 0.02999, "high": 0.030414, "low": 0.029791, "open": 0.029912, "timestamp": 1792861200000, "volume": 11777664.0}, {"close": 0.030769, "high": 0.030999, "low": 0.030594, "open": 0.030856, "timestamp": 1792864800000, "volume": 10440793.0}, {"close": 0.030768, "high": 0.03085, "low": 0.030662, "open": 0.030775, "timestamp": 1792868400000, "volume": 3178686.0}, {"close": 0.03086, "high": 0.031084, "low": 0.030747, "open": 0.031009, "timestamp": 1792872000000, "volume": 2825690.0}, {"close": 0.031369, "high": 0.031525, "low": 0.031139, "open": 0.031196, "timestamp": 1792875600000, "volume": 4961561.0}, {"close": 0.030916, "high": 0.031108, "low": 0.030813, "open": 0.030813, "timestamp": 1792879200000, "volume": 2671958.0}, {"close": 0.031134, "high": 0.031158, "low": 0.030845, "open": 0.030961, "timestamp": 1792882800000, "volume": 3692448.0}, {"close": 0.031338, "high": 0.031437, "low": 0.031233, "open": 0.031271, "timestamp": 1792886400000, "volume": 5437240.0}, {"close": 0.031607, "high": 0.031847, "low": 0.031551, "open": 0.031811, "timestamp": 1792890000000, "volume": 7084596.0}, {"close": 0.032051, "high": 0.032092, "low": 0.03172, "open": 0.03174, "timestamp": 1792893600000, "volume": 5976709.0}, {"close": 0.029499, "high": 0.030728, "low": 0.029449, "open": 0.030499, "timestamp": 1792897200000, "volume": 40388006.0}, {"close": 0.029821, "high": 0.029866, "low": 0.0297, "open": 0.029775, "timestamp": 1792900800000, "volume": 5087284.0}, {"close": 0.030423, "high": 0.03098, "low": 0.030411, "open": 0.030856, "timestamp": 1792904400000, "volume": 10284877.0}, {"close": 0.029605, "high": 0.030011, "low": 0.029526, "open": 0.029959, "timestamp": 1792908000000, "volume": 6315680.0}, {"close": 0.029142, "high": 0.029384, "low": 0.028798, "open": 0.028839, "timestamp": 1792911600000, "volume": 8462945.0}, {"close": 0.029119, "high": 0.029168, "low": 0.028753, "open": 0.028992, "timestamp": 1792915200000, "volume": 6972899.0}, {"close": 0.028777, "high": 0.028973, "low": 0.028768, "open": 0.028946, "timestamp": 1792918800000, "volume": 4446012.0}, {"close": 0.028885, "high": 0.029082, "low": 0.028575, "open": 0.028575, "timestamp": 1792922400000, "volume": 6187377.0}, {"close": 0.029124, "high": 0.029241, "low": 0.028883, "open": 0.029223, "timestamp": 1792926000000, "volume": 4565689.0}, {"close": 0.0292, "high": 0.029665, "low": 0.029008, "open": 0.029631, "timestamp": 1792929600000, "volume": 9117720.0}, {"close": 0.029145, "high": 0.029204, "low": 0.028642, "open": 0.029046, "timestamp": 1792933200000, "volume": 11498802.0}, {"close": 0.028823, "high": 0.028925, "low": 0.028795, "open": 0.028891, "timestamp": 1792936800000, "volume": 2970851.0}, {"close": 0.028679, "high": 0.028687, "low": 0.028467, "open": 0.028564, "timestamp": 1792940400000, "volume": 2920317.0}, {"close": 0.030304, "high": 0.03082, "low": 0.030076, "open": 0.030557, "timestamp": 1792944000000, "volume": 27852465.0}, {"close": 0.030303, "high": 0.030439, "low": 0.030248, "open": 0.030333, "timestamp": 1792947600000, "volume": 2994367.0}, {"close": 0.032049, "high": 0.032215, "low": 0.031057, "open": 0.031169, "timestamp": 1792951200000, "volume": 18114407.0}, {"close": 0.031083, "high": 0.03128, "low": 0.030895, "open": 0.031264, "timestamp": 1792954800000, "volume": 4661113.0}, {"close": 0.031212, "high": 0.03127, "low": 0.031006, "open": 0.031089, "timestamp": 1792958400000, "volume": 3044712.0}, {"close": 0.031245, "high": 0.031331, "low": 0.031041, "open": 0.031136, "timestamp": 1792962000000, "volume": 2626122.0}, {"close": 0.03136, "high": 0.031531, "low": 0.031097, "open": 0.031379, "timestamp": 1792965600000, "volume": 7576463.0}, {"close": 0.031047, "high": 0.031197, "low": 0.031015, "open": 0.031063, "timestamp": 1792969200000, "volume": 2569211.0}, {"close": 0.031182, "high": 0.031382, "low": 0.031144, "open": 0.031225, "timestamp": 1792972800000, "volume": 5157630.0}, {"close": 0.031489, "high": 0.03185, "low": 0.031489, "open": 0.031781, "timestamp": 1792976400000, "volume": 4775815.0}, {"close": 0.03157, "high": 0.031619, "low": 0.031296, "open": 0.031443, "timestamp": 1792980000000, "volume": 4743692.0}, {"close": 0.031372, "high": 0.031502, "low": 0.031197, "open": 0.0312, "timestamp": 1792983600000, "volume": 3195690.0}, {"close": 0.031144, "high": 0.031149, "low": 0.030877, "open": 0.0309, "timestamp": 1792987200000, "volume": 3274119.0}, {"close": 0.030924, "high": 0.031, "low": 0.030663, "open": 0.030685, "timestamp": 1792990800000, "volume": 3595861.0}, {"close": 0.030957, "high": 0.031299, "low": 0.030863, "open": 0.031231, "timestamp": 1792994400000, "volume": 3829307.0}, {"close": 0.031043, "high": 0.031244, "low": 0.03093, "open": 0.030976, "timestamp": 1792998000000, "volume": 2995100.0}, {"close": 0.031049, "high": 0.03116, "low": 0.030969, "open": 0.031107, "timestamp": 1793001600000, "volume": 2494287.0}, {"close": 0.031557, "high": 0.031645, "low": 0.03142, "open": 0.031577, "timestamp": 1793005200000, "volume": 5638583.0}, {"close": 0.031666, "high": 0.031895, "low": 0.031611, "open": 0.031786, "timestamp": 1793008800000, "volume": 5146572.0}, {"close": 0.031416, "high": 0.031617, "low": 0.031329, "open": 0.031575, "timestamp": 1793012400000, "volume": 3025669.0}, {"close": 0.031706, "high": 0.031785, "low": 0.031553, "open": 0.031755, "timestamp": 1793016000000, "volume": 3837515.0}, {"close": 0.031673, "high": 0.031887, "low": 0.031657, "open": 0.031806, "timestamp": 1793019600000, "volume": 3413031.0}, {"close": 0.031577, "high": 0.031662, "low": 0.031498, "open": 0.031549, "timestamp": 1793023200000, "volume": 3422370.0}, {"close": 0.031795, "high": 0.031832, "low": 0.031556, "open": 0.031579, "timestamp": 1793026800000, "volume": 4134278.0}, {"close": 0.030972, "high": 0.031065, "low": 0.030542, "open": 0.030784, "timestamp": 1793030400000, "volume": 12330938.0}, {"close": 0.031186, "high": 0.031211, "low": 0.030852, "open": 0.030863, "timestamp": 1793034000000, "volume": 3405166.0}, {"close": 0.030638, "high": 0.030737, "low": 0.030588, "open": 0.030619, "timestamp": 1793037600000, "volume": 1884600.0}, {"close": 0.030465, "high": 0.030478, "low": 0.030344, "open": 0.030381, "timestamp": 1793041200000, "volume": 2094173.0}, {"close": 0.03044, "high": 0.03048, "low": 0.030361, "open": 0.030371, "timestamp": 1793044800000, "volume": 1231114.0}, {"close": 0.030193, "high": 0.03026, "low": 0.030057, "open": 0.030119, "timestamp": 1793048400000, "volume": 2320441.0}, {"close": 0.030368, "high": 0.030547, "low": 0.030311, "open": 0.030524, "timestamp": 1793052000000, "volume": 2892921.0}, {"close": 0.0302, "high": 0.030316, "low": 0.030112, "open": 0.030311, "timestamp": 1793055600000, "volume": 3867809.0}, {"close": 0.030447, "high": 0.030473, "low": 0.030376, "open": 0.030458, "timestamp": 1793059200000, "volume": 908910.0}, {"close": 0.030379, "high": 0.03046, "low": 0.030304, "open": 0.030335, "timestamp": 1793062800000, "volume": 2477900.0}, {"close": 0.03068, "high": 0.030821, "low": 0.030583, "open": 0.030771, "timestamp": 1793066400000, "volume": 3643397.0}, {"close": 0.031595, "high": 0.031653, "low": 0.031347, "open": 0.031575, "timestamp": 1793070000000, "volume": 6014963.0}, {"close": 0.031118, "high": 0.031241, "low": 0.03104, "open": 0.031195, "timestamp": 1793073600000, "volume": 2915398.0}, {"close": 0.030853, "high": 0.030896, "low": 0.030714, "open": 0.030765, "timestamp": 1793077200000, "volume": 1626181.0}, {"close": 0.030796, "high": 0.030878, "low": 0.030711, "open": 0.030871, "timestamp": 1793080800000, "volume": 1949015.0}, {"close": 0.029906, "high": 0.030215, "low": 0.029579, "open": 0.030215, "timestamp": 1793084400000, "volume": 18424879.0}, {"close": 0.029908, "high": 0.030062, "low": 0.029744, "open": 0.030062, "timestamp": 1793088000000, "volume": 5513504.0}, {"close": 0.029548, "high": 0.029726, "low": 0.029422, "open": 0.02972, "timestamp": 1793091600000, "volume": 7056524.0}, {"close": 0.029629, "high": 0.029783, "low": 0.029507, "open": 0.02965, "timestamp": 1793095200000, "volume": 3986606.0}, {"close": 0.029542, "high": 0.029593, "low": 0.02946, "open": 0.029479, "timestamp": 1793098800000, "volume": 2020588.0}, {"close": 0.029323, "high": 0.029371, "low": 0.029215, "open": 0.029237, "timestamp": 1793102400000, "volume": 7120727.0}, {"close": 0.029207, "high": 0.029265, "low": 0.029158, "open": 0.029263, "timestamp": 1793106000000, "volume": 1907686.0}, {"close": 0.029448, "high": 0.029466, "low": 0.029307, "open": 0.029311, "timestamp": 1793109600000, "volume": 4907012.0}, {"close": 0.029476, "high": 0.0298, "low": 0.029323, "open": 0.029564, "timestamp": 1793113200000, "volume": 7215458.0}, {"close": 0.022946, "high": 0.023665, "low": 0.0192, "open": 0.021121, "timestamp": 1793116800000, "volume": 438374365.0}, {"close": 0.023061, "high": 0.023826, "low": 0.023, "open": 0.023505, "timestamp": 1793120400000, "volume": 36800243.0}, {"close": 0.022585, "high": 0.023166, "low": 0.0225, "open": 0.023122, "timestamp": 1793124000000, "volume": 35870329.0}, {"close": 0.022852, "high": 0.023178, "low": 0.02272, "open": 0.023171, "timestamp": 1793127600000, "volume": 12178601.0}, {"close": 0.02254, "high": 0.022713, "low": 0.0225, "open": 0.022561, "timestamp": 1793131200000, "volume": 9024517.0}, {"close": 0.022533, "high": 0.022561, "low": 0.022429, "open": 0.022433, "timestamp": 1793134800000, "volume": 4374974.0}, {"close": 0.021553, "high": 0.021752, "low": 0.021491, "open": 0.021686, "timestamp": 1793138400000, "volume": 13173369.0}, {"close": 0.021574, "high": 0.021731, "low": 0.021546, "open": 0.021677, "timestamp": 1793142000000, "volume": 7351631.0}, {"close": 0.021644, "high": 0.021668, "low": 0.021392, "open": 0.021633, "timestamp": 1793145600000, "volume": 10007431.0}, {"close": 0.021803, "high": 0.021828, "low": 0.02144, "open": 0.021513, "timestamp": 1793149200000, "volume": 7227677.0}, {"close": 0.022894, "high": 0.023276, "low": 0.022783, "open": 0.023013, "timestamp": 1793152800000, "volume": 16861327.0}, {"close": 0.022572, "high": 0.022674, "low": 0.022542, "open": 0.022621, "timestamp": 1793156400000, "volume": 5704640.0}, {"close": 0.022028, "high": 0.022474, "low": 0.021894, "open": 0.022413, "timestamp": 1793160000000, "volume": 14950855.0}, {"close": 0.021859, "high": 0.022055, "low": 0.021824, "open": 0.021959, "timestamp": 1793163600000, "volume": 4784044.0}, {"close": 0.021475, "high": 0.021546, "low": 0.021428, "open": 0.021511, "timestamp": 1793167200000, "volume": 4842523.0}, {"close": 0.020809, "high": 0.020884, "low": 0.020605, "open": 0.020814, "timestamp": 1793170800000, "volume": 14015119.0}, {"close": 0.02056, "high": 0.021064, "low": 0.020481, "open": 0.020485, "timestamp": 1793174400000, "volume": 29744495.0}, {"close": 0.020526, "high": 0.020662, "low": 0.020188, "open": 0.020197, "timestamp": 1793178000000, "volume": 14343228.0}, {"close": 0.020391, "high": 0.020592, "low": 0.020354, "open": 0.020562, "timestamp": 1793181600000, "volume": 10102219.0}, {"close": 0.019933, "high": 0.020076, "low": 0.019812, "open": 0.020037, "timestamp": 1793185200000, "volume": 10346573.0}, {"close": 0.019975, "high": 0.020149, "low": 0.019817, "open": 0.020146, "timestamp": 1793188800000, "volume": 13053891.0}, {"close": 0.019659, "high": 0.019825, "low": 0.019641, "open": 0.019767, "timestamp": 1793192400000, "volume": 8149160.0}, {"close": 0.019443, "high": 0.019643, "low": 0.019341, "open": 0.019633, "timestamp": 1793196000000, "volume": 18577568.0}, {"close": 0.019303, "high": 0.019534, "low": 0.019253, "open": 0.019461, "timestamp": 1793199600000, "volume": 7662458.0}, {"close": 0.020123, "high": 0.020469, "low": 0.019889, "open": 0.020098, "timestamp": 1793203200000, "volume": 33562531.0}, {"close": 0.022014, "high": 0.022173, "low": 0.021652, "open": 0.021809, "timestamp": 1793206800000, "volume": 37173629.0}, {"close": 0.022727, "high": 0.022866, "low": 0.021995, "open": 0.022108, "timestamp": 1793210400000, "volume": 27488349.0}, {"close": 0.023734, "high": 0.023844, "low": 0.022737, "open": 0.022741, "timestamp": 1793214000000, "volume": 40375587.0}, {"close": 0.023405, "high": 0.023518, "low": 0.023186, "open": 0.023331, "timestamp": 1793217600000, "volume": 12396927.0}, {"close": 0.023341, "high": 0.023637, "low": 0.0232, "open": 0.02358, "timestamp": 1793221200000, "volume": 19160695.0}, {"close": 0.022608, "high": 0.022879, "low": 0.022429, "open": 0.022669, "timestamp": 1793224800000, "volume": 11719506.0}, {"close": 0.022344, "high": 0.022384, "low": 0.022246, "open": 0.022365, "timestamp": 1793228400000, "volume": 6430073.0}, {"close": 0.022741, "high": 0.02275, "low": 0.022497, "open": 0.02259, "timestamp": 1793232000000, "volume": 5155333.0}, {"close": 0.021773, "high": 0.021952, "low": 0.021673, "open": 0.02192, "timestamp": 1793235600000, "volume": 7133039.0}, {"close": 0.021388, "high": 0.021491, "low": 0.021284, "open": 0.021354, "timestamp": 1793239200000, "volume": 7126182.0}, {"close": 0.021956, "high": 0.021999, "low": 0.021658, "open": 0.021727, "timestamp": 1793242800000, "volume": 6593282.0}, {"close": 0.021805, "high": 0.022103, "low": 0.021722, "open": 0.022087, "timestamp": 1793246400000, "volume": 5836382.0}, {"close": 0.021266, "high": 0.021541, "low": 0.02125, "open": 0.02133, "timestamp": 1793250000000, "volume": 5928427.0}, {"close": 0.020918, "high": 0.021149, "low": 0.020851, "open": 0.021134, "timestamp": 1793253600000, "volume": 4867849.0}, {"close": 0.020683, "high": 0.020772, "low": 0.020541, "open": 0.020564, "timestamp": 1793257200000, "volume": 7137904.0}, {"close": 0.020653, "high": 0.020725, "low": 0.02055, "open": 0.020591, "timestamp": 1793260800000, "volume": 4713849.0}, {"close": 0.020597, "high": 0.020714, "low": 0.020577, "open": 0.020656, "timestamp": 1793264400000, "volume": 3719920.0}, {"close": 0.020538, "high": 0.020594, "low": 0.020421, "open": 0.020556, "timestamp": 1793268000000, "volume": 3917726.0}, {"close": 0.020306, "high": 0.020387, "low": 0.020304, "open": 0.020324, "timestamp": 1793271600000, "volume": 2200049.0}, {"close": 0.020407, "high": 0.020532, "low": 0.020367, "open": 0.02048, "timestamp": 1793275200000, "volume": 6220662.0}, {"close": 0.020736, "high": 0.020795, "low": 0.020638, "open": 0.02071, "timestamp": 1793278800000, "volume": 5767707.0}, {"close": 0.021017, "high": 0.021099, "low": 0.020913, "open": 0.021091, "timestamp": 1793282400000, "volume": 7493371.0}, {"close": 0.021152, "high": 0.021346, "low": 0.021063, "open": 0.021289, "timestamp": 1793286000000, "volume": 8879018.0}, {"close": 0.020686, "high": 0.021074, "low": 0.020603, "open": 0.021062, "timestamp": 1793289600000, "volume": 10369760.0}, {"close": 0.020616, "high": 0.020879, "low": 0.020461, "open": 0.020573, "timestamp": 1793293200000, "volume": 8754713.0}, {"close": 0.020458, "high": 0.020523, "low": 0.020313, "open": 0.020369, "timestamp": 1793296800000, "volume": 2829727.0}, {"close": 0.020361, "high": 0.020395, "low": 0.020238, "open": 0.020243, "timestamp": 1793300400000, "volume": 3898438.0}, {"close": 0.020462, "high": 0.020581, "low": 0.020204, "open": 0.020316, "timestamp": 1793304000000, "volume": 9991167.0}, {"close": 0.02074, "high": 0.021447, "low": 0.020738, "open": 0.021036, "timestamp": 1793307600000, "volume": 20254977.0}, {"close": 0.020948, "high": 0.02103, "low": 0.020776, "open": 0.020779, "timestamp": 1793311200000, "volume": 3536661.0}, {"close": 0.021141, "high": 0.021275, "low": 0.021077, "open": 0.021077, "timestamp": 1793314800000, "volume": 3819136.0}, {"close": 0.021085, "high": 0.021184, "low": 0.020988, "open": 0.020999, "timestamp": 1793318400000, "volume": 3699565.0}, {"close": 0.02102, "high": 0.021221, "low": 0.020969, "open": 0.021088, "timestamp": 1793322000000, "volume": 5072213.0}, {"close": 0.020816, "high": 0.020931, "low": 0.020785, "open": 0.020921, "timestamp": 1793325600000, "volume": 4149302.0}, {"close": 0.021148, "high": 0.0212, "low": 0.021035, "open": 0.021188, "timestamp": 1793329200000, "volume": 2705502.0}, {"close": 0.018969, "high": 0.019097, "low": 0.018645, "open": 0.018797, "timestamp": 1793332800000, "volume": 20982270.0}, {"close": 0.018869, "high": 0.019022, "low": 0.018724, "open": 0.018967, "timestamp": 1793336400000, "volume": 7278829.0}, {"close": 0.018743, "high": 0.018763, "low": 0.018523, "open": 0.018699, "timestamp": 1793340000000, "volume": 7715598.0}, {"close": 0.01881, "high": 0.018938, "low": 0.018739, "open": 0.018801, "timestamp": 1793343600000, "volume": 6531519.0}, {"close": 0.019146, "high": 0.019183, "low": 0.018849, "open": 0.018897, "timestamp": 1793347200000, "volume": 7653024.0}, {"close": 0.018907, "high": 0.018974, "low": 0.018856, "open": 0.018862, "timestamp": 1793350800000, "volume": 4834914.0}, {"close": 0.018661, "high": 0.018899, "low": 0.01865, "open": 0.018897, "timestamp": 1793354400000, "volume": 5261724.0}, {"close": 0.01864, "high": 0.018751, "low": 0.018603, "open": 0.018721, "timestamp": 1793358000000, "volume": 4374697.0}, {"close": 0.018763, "high": 0.019067, "low": 0.01843, "open": 0.018475, "timestamp": 1793361600000, "volume": 15518694.0}, {"close": 0.01935, "high": 0.01948, "low": 0.019081, "open": 0.019156, "timestamp": 1793365200000, "volume": 10787442.0}, {"close": 0.018999, "high": 0.019127, "low": 0.018957, "open": 0.019058, "timestamp": 1793368800000, "volume": 4105770.0}, {"close": 0.019216, "high": 0.019271, "low": 0.019145, "open": 0.019226, "timestamp": 1793372400000, "volume": 2748108.0}, {"close": 0.018787, "high": 0.018934, "low": 0.018766, "open": 0.018922, "timestamp": 1793376000000, "volume": 2533152.0}, {"close": 0.018807, "high": 0.018818, "low": 0.018655, "open": 0.018657, "timestamp": 1793379600000, "volume": 2539165.0}, {"close": 0.016134, "high": 0.017449, "low": 0.016003, "open": 0.017333, "timestamp": 1793383200000, "volume": 120441762.0}, {"close": 0.014014, "high": 0.014555, "low": 0.01395, "open": 0.014251, "timestamp": 1793386800000, "volume": 41403141.0}, {"close": 0.014132, "high": 0.014347, "low": 0.014075, "open": 0.014262, "timestamp": 1793390400000, "volume": 19098438.0}, {"close": 0.013679, "high": 0.013837, "low": 0.013653, "open": 0.013801, "timestamp": 1793394000000, "volume": 11714868.0}, {"close": 0.013111, "high": 0.013137, "low": 0.013038, "open": 0.013086, "timestamp": 1793397600000, "volume": 11390233.0}, {"close": 0.013451, "high": 0.013464, "low": 0.013158, "open": 0.013196, "timestamp": 1793401200000, "volume": 16438492.0}, {"close": 0.013919, "high": 0.013947, "low": 0.013733, "open": 0.013906, "timestamp": 1793404800000, "volume": 26009786.0}, {"close": 0.013094, "high": 0.01338, "low": 0.013057, "open": 0.01332, "timestamp": 1793408400000, "volume": 28283071.0}, {"close": 0.01213, "high": 0.01241, "low": 0.012044, "open": 0.012386, "timestamp": 1793412000000, "volume": 56026691.0}, {"close": 0.011566, "high": 0.011867, "low": 0.011563, "open": 0.011865, "timestamp": 1793415600000, "volume": 36916457.0}, {"close": 0.011321, "high": 0.011444, "low": 0.011301, "open": 0.011438, "timestamp": 1793419200000, "volume": 26025887.0}, {"close": 0.011154, "high": 0.011163, "low": 0.011039, "open": 0.011079, "timestamp": 1793422800000, "volume": 26123202.0}, {"close": 0.011863, "high": 0.011982, "low": 0.011496, "open": 0.011824, "timestamp": 1793426400000, "volume": 54744348.0}, {"close": 0.012413, "high": 0.012475, "low": 0.01224, "open": 0.012329, "timestamp": 1793430000000, "volume": 26588686.0}, {"close": 0.010393, "high": 0.010707, "low": 0.009145, "open": 0.010389, "timestamp": 1793433600000, "volume": 624163648.0}, {"close": 0.010737, "high": 0.010968, "low": 0.010636, "open": 0.010687, "timestamp": 1793437200000, "volume": 58990770.0}]</script>
+<script type="application/json" id="python-trades-data">[{"bars_held": 0, "entry_index": 79, "entry_price": 0.023505, "entry_time": 1793120400000, "exit_index": 79, "exit_price": 0.023152425, "exit_reason": "sl", "exit_time": 1793120400000, "pnl_pct": -1.5, "pnl_usdt": -15.8, "symbol": "AKE/USDT:USDT"}, {"bars_held": 7, "entry_index": 140, "entry_price": 0.018699, "entry_time": 1793340000000, "exit_index": 147, "exit_price": 0.01925997, "exit_reason": "tp", "exit_time": 1793365200000, "pnl_pct": 3.0, "pnl_usdt": 29.2, "symbol": "AKE/USDT:USDT"}, {"bars_held": 0, "entry_index": 153, "entry_price": 0.014251, "entry_time": 1793386800000, "exit_index": 153, "exit_price": 0.014037235, "exit_reason": "sl", "exit_time": 1793386800000, "pnl_pct": -1.5, "pnl_usdt": -15.8, "symbol": "AKE/USDT:USDT"}, {"bars_held": 1, "entry_index": 155, "entry_price": 0.013801, "entry_time": 1793394000000, "exit_index": 156, "exit_price": 0.013593985000000001, "exit_reason": "sl", "exit_time": 1793397600000, "pnl_pct": -1.5, "pnl_usdt": -15.8, "symbol": "AKE/USDT:USDT"}, {"bars_held": 0, "entry_index": 161, "entry_price": 0.011865, "entry_time": 1793415600000, "exit_index": 161, "exit_price": 0.011687025, "exit_reason": "sl", "exit_time": 1793415600000, "pnl_pct": -1.5, "pnl_usdt": -15.8, "symbol": "AKE/USDT:USDT"}, {"bars_held": 0, "entry_index": 167, "entry_price": 0.010687, "entry_time": 1793437200000, "exit_index": 167, "exit_price": 0.010737, "exit_reason": "time", "exit_time": 1793437200000, "pnl_pct": 0.4679, "pnl_usdt": 3.8786, "symbol": "AKE/USDT:USDT"}]</script>
+<script>
+// ---- Strategy engine (mirrors futures_scan/strategy.py + indicators.py exactly) ----
+const RSI_PERIOD = 14;
+const VOL_LOOKBACK = 20;
+const RSI_THRESHOLD = 30;
+const VOL_MULT = 3;
+const TP_PCT = 0.03;
+const SL_PCT = 0.015;
+const MAX_HOLD_BARS = 24;
+const FEE_ONE_WAY = 0.0004;
+const NOTIONAL = 1000;
+
+function computeRSI(closes, period) {
+  const n = closes.length;
+  const rsi = new Array(n).fill(null);
+  const gains = new Array(n).fill(0);
+  const losses = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) {
+    const delta = closes[i] - closes[i - 1];
+    gains[i] = Math.max(delta, 0);
+    losses[i] = Math.max(-delta, 0);
+  }
+  const alpha = 1 / period;
+  let avgGain = gains[0], avgLoss = losses[0];
+  const avgGains = new Array(n).fill(null);
+  const avgLosses = new Array(n).fill(null);
+  avgGains[0] = avgGain; avgLosses[0] = avgLoss;
+  for (let i = 1; i < n; i++) {
+    avgGain = (1 - alpha) * avgGain + alpha * gains[i];
+    avgLoss = (1 - alpha) * avgLoss + alpha * losses[i];
+    avgGains[i] = avgGain; avgLosses[i] = avgLoss;
+  }
+  for (let i = period - 1; i < n; i++) {
+    const ag = avgGains[i], al = avgLosses[i];
+    if (al === 0 && ag === 0) rsi[i] = 50;
+    else if (al === 0) rsi[i] = 100;
+    else {
+      const rs = ag / al;
+      rsi[i] = 100 - 100 / (1 + rs);
+    }
+  }
+  return rsi;
+}
+
+function computeVolRatio(volumes, lookback) {
+  const n = volumes.length;
+  const ratio = new Array(n).fill(null);
+  for (let i = lookback; i < n; i++) {
+    let sum = 0;
+    for (let j = i - lookback; j < i; j++) sum += volumes[j];
+    const avg = sum / lookback;
+    ratio[i] = avg > 0 ? volumes[i] / avg : null;
+  }
+  return ratio;
+}
+
+function computeSignals(candles) {
+  const closes = candles.map(c => c.close);
+  const volumes = candles.map(c => c.volume);
+  const rsi = computeRSI(closes, RSI_PERIOD);
+  const volRatio = computeVolRatio(volumes, VOL_LOOKBACK);
+  const n = candles.length;
+  const signals = new Array(n).fill(false);
+  for (let i = 0; i < n; i++) {
+    if (rsi[i] === null || rsi[i] >= RSI_THRESHOLD) continue;
+    const ratioNow = volRatio[i];
+    const ratioPrev = i > 0 ? volRatio[i - 1] : null;
+    const ok = (ratioNow !== null && ratioNow >= VOL_MULT) || (ratioPrev !== null && ratioPrev >= VOL_MULT);
+    signals[i] = ok;
+  }
+  return { signals, rsi, volRatio };
+}
+
+function simulateTrade(candles, entryIndex) {
+  const n = candles.length;
+  if (entryIndex >= n) return null;
+  const entryPrice = candles[entryIndex].open;
+  const tpPrice = entryPrice * (1 + TP_PCT);
+  const slPrice = entryPrice * (1 - SL_PCT);
+  const lastBar = Math.min(entryIndex + MAX_HOLD_BARS, n - 1);
+  for (let i = entryIndex; i <= lastBar; i++) {
+    const bar = candles[i];
+    let exitPrice = null, reason = null;
+    if (bar.low <= slPrice) { exitPrice = slPrice; reason = 'sl'; }
+    else if (bar.high >= tpPrice) { exitPrice = tpPrice; reason = 'tp'; }
+    else if (i === lastBar) { exitPrice = bar.close; reason = 'time'; }
+    else continue;
+    const pnlPct = (exitPrice - entryPrice) / entryPrice;
+    const grossPnl = pnlPct * NOTIONAL;
+    const fees = NOTIONAL * FEE_ONE_WAY * 2;
+    return {
+      entryIndex, exitIndex: i, entryPrice, exitPrice, reason,
+      pnlPct: pnlPct * 100, pnlUsdt: grossPnl - fees,
+    };
+  }
+  return null;
+}
+
+function generateAllTrades(candles) {
+  const { signals } = computeSignals(candles);
+  const trades = [];
+  let i = 0;
+  const n = candles.length;
+  while (i < n - 1) {
+    if (signals[i]) {
+      const entryIndex = i + 1;
+      const trade = simulateTrade(candles, entryIndex);
+      if (trade) { trades.push(trade); i = trade.exitIndex + 1; continue; }
+    }
+    i++;
+  }
+  return trades;
+}
+
+// ---- Replay UI ----
+const candles = JSON.parse(document.getElementById('candles-data').textContent);
+const pythonTrades = JSON.parse(document.getElementById('python-trades-data').textContent);
+const { signals } = computeSignals(candles);
+
+const chartOpts = {
+  layout: { background: { color: '#fbfaf7' }, textColor: '#14130f', fontFamily: "'IBM Plex Mono', monospace" },
+  grid: { vertLines: { color: '#eeebe3' }, horzLines: { color: '#eeebe3' } },
+  rightPriceScale: { borderColor: '#d9d5cc' },
+  timeScale: { borderColor: '#d9d5cc', timeVisible: true, secondsVisible: false },
+};
+function el(id) { return document.getElementById(id); }
+const priceChart = LightweightCharts.createChart(el('chart-container'), { ...chartOpts, width: el('chart-container').clientWidth, height: 420 });
+const candleSeries = priceChart.addCandlestickSeries({ upColor: '#2c7a4b', downColor: '#bf2f38', borderVisible: false, wickUpColor: '#2c7a4b', wickDownColor: '#bf2f38' });
+const volChart = LightweightCharts.createChart(el('vol-container'), { ...chartOpts, width: el('vol-container').clientWidth, height: 100, timeScale: { ...chartOpts.timeScale, visible: false } });
+const volSeries = volChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
+
+let cursor = 0;
+let playing = false;
+let speed = 4;
+let openTrade = null; // { entryIndex, entryPrice, tpPrice, slPrice, maxIndex }
+let closedTrades = [];
+let realizedPnl = 0;
+const markers = [];
+
+function toTime(ts) { return Math.floor(ts / 1000); }
+
+function resetState() {
+  cursor = 0; playing = false; openTrade = null; closedTrades = []; realizedPnl = 0; markers.length = 0;
+  candleSeries.setData([]); volSeries.setData([]);
+  candleSeries.setMarkers([]);
+  renderStats(); renderLog();
+}
+
+function renderStats() {
+  el('stat-count').textContent = closedTrades.length;
+  const wins = closedTrades.filter(t => t.pnlUsdt > 0).length;
+  el('stat-winrate').textContent = closedTrades.length ? (100 * wins / closedTrades.length).toFixed(1) + '%' : '0%';
+  el('stat-pnl').textContent = realizedPnl.toFixed(2);
+  el('stat-pnl').className = realizedPnl >= 0 ? 'pos' : 'neg';
+  if (openTrade) {
+    el('stat-open').textContent = 'LONG @ ' + openTrade.entryPrice.toFixed(6);
+    el('open-trade-box').innerHTML = `<div class="open-trade">entry ${openTrade.entryPrice.toFixed(6)} · tp ${openTrade.tpPrice.toFixed(6)} · sl ${openTrade.slPrice.toFixed(6)} · bar ${cursor - openTrade.entryIndex}/${MAX_HOLD_BARS}</div>`;
+  } else {
+    el('stat-open').textContent = 'none';
+    el('open-trade-box').innerHTML = '';
+  }
+  el('progress-chip').textContent = cursor + ' / ' + candles.length;
+}
+
+function renderLog() {
+  const rows = closedTrades.slice().reverse().map(t => {
+    const cls = t.pnlUsdt >= 0 ? 'pos' : 'neg';
+    return `<div class="trade-row"><span>${t.reason.toUpperCase()} @ ${t.exitPrice.toFixed(6)}</span><span class="${cls}">${t.pnlUsdt.toFixed(2)}</span></div>`;
+  }).join('');
+  el('trade-log').innerHTML = rows || '<div class="label">no closed trades yet</div>';
+}
+
+function step() {
+  if (cursor >= candles.length) { playing = false; return; }
+  const bar = candles[cursor];
+  candleSeries.update({ time: toTime(bar.timestamp), open: bar.open, high: bar.high, low: bar.low, close: bar.close });
+  volSeries.update({ time: toTime(bar.timestamp), value: bar.volume, color: bar.close >= bar.open ? 'rgba(44,122,75,0.5)' : 'rgba(191,47,56,0.5)' });
+
+  // manage open trade first (SL checked before TP, matches Python)
+  if (openTrade) {
+    let exitPrice = null, reason = null;
+    if (bar.low <= openTrade.slPrice) { exitPrice = openTrade.slPrice; reason = 'sl'; }
+    else if (bar.high >= openTrade.tpPrice) { exitPrice = openTrade.tpPrice; reason = 'tp'; }
+    else if (cursor >= openTrade.maxIndex) { exitPrice = bar.close; reason = 'time'; }
+    if (exitPrice !== null) {
+      const pnlPct = (exitPrice - openTrade.entryPrice) / openTrade.entryPrice;
+      const pnlUsdt = pnlPct * NOTIONAL - NOTIONAL * FEE_ONE_WAY * 2;
+      closedTrades.push({ exitPrice, reason, pnlUsdt, pnlPct: pnlPct * 100 });
+      if (window.__dropBall) window.__dropBall(pnlPct * 100);
+      realizedPnl += pnlUsdt;
+      markers.push({ time: toTime(bar.timestamp), position: 'aboveBar', color: pnlUsdt >= 0 ? '#2c7a4b' : '#bf2f38', shape: 'arrowDown', text: 'EXIT ' + reason.toUpperCase() });
+      openTrade = null;
+    }
+  } else if (cursor > 0 && signals[cursor - 1]) {
+    // signal on previous bar's close -> enter at this bar's open
+    const entryPrice = bar.open;
+    openTrade = {
+      entryIndex: cursor, entryPrice,
+      tpPrice: entryPrice * (1 + TP_PCT), slPrice: entryPrice * (1 - SL_PCT),
+      maxIndex: Math.min(cursor + MAX_HOLD_BARS, candles.length - 1),
+    };
+    markers.push({ time: toTime(bar.timestamp), position: 'belowBar', color: '#14130f', shape: 'arrowUp', text: 'ENTRY' });
+  }
+  candleSeries.setMarkers(markers);
+  cursor++;
+  renderStats();
+  renderLog();
+}
+
+let timer = null;
+function tick() {
+  if (!playing) return;
+  const stepsPerTick = Math.max(1, Math.floor(speed / 4));
+  for (let k = 0; k < stepsPerTick && cursor < candles.length; k++) step();
+  if (cursor >= candles.length) { playing = false; return; }
+  timer = setTimeout(tick, Math.max(16, 250 / speed));
+}
+
+el('btn-play').addEventListener('click', () => { if (!playing) { playing = true; tick(); } });
+el('btn-pause').addEventListener('click', () => { playing = false; if (timer) clearTimeout(timer); });
+el('btn-reset').addEventListener('click', () => { playing = false; if (timer) clearTimeout(timer); if (window.__resetLattice) window.__resetLattice(); resetState(); });
+document.querySelectorAll('.speed-group button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.speed-group button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    speed = parseInt(btn.dataset.speed, 10);
+  });
+});
+
+window.addEventListener('resize', () => {
+  priceChart.applyOptions({ width: el('chart-container').clientWidth });
+  volChart.applyOptions({ width: el('vol-container').clientWidth });
+});
+
+// ---- mini probability lattice: one ball per closed fill ----
+(function () {
+  const cv = document.getElementById('mini-lattice');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const TIERS = 7, BINS = 7;
+  let W = 260, H = 150, SP = 26, cx = 130;
+  const topY = 14, botY = 78, histBot = 132;
+  let counts = new Array(BINS).fill(0);
+  let balls = [];
+  function resize() {
+    W = Math.max(180, cv.parentNode.getBoundingClientRect().width);
+    SP = Math.max(16, Math.min(30, (W - 20) / (BINS + 0.6)));
+    cx = W / 2;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; cv.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  function binFor(r) { return Math.max(-3, Math.min(3, Math.sign(r) * Math.round(Math.abs(r)))); }
+  window.__dropBall = function (pnlPct) {
+    const target = binFor(pnlPct), rights = target + 3;
+    const moves = [];
+    for (let i = 0; i < 6; i++) moves.push(i < rights ? 1 : -1);
+    for (let i = moves.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = moves[i]; moves[i] = moves[j]; moves[j] = t; }
+    moves.splice(3, 0, 0);
+    balls.push({ bin: target, moves, p: 0, trail: [], win: pnlPct > 0 });
+  };
+  window.__resetLattice = function () { counts = new Array(BINS).fill(0); balls = []; };
+  function pos(b) {
+    const rowH = (botY - topY) / TIERS;
+    const stage = Math.min(TIERS, Math.floor(b.p)), frac = b.p - stage;
+    let off = 0;
+    for (let i = 0; i < Math.min(stage, TIERS); i++) off += b.moves[i];
+    let x = cx + off * SP / 2;
+    let y = topY + Math.min(b.p, TIERS) * rowH;
+    if (stage < TIERS) x += b.moves[stage] * (SP / 2) * frac;
+    if (b.p > TIERS) y = botY + (b.p - TIERS) * rowH * 1.4;
+    return { x, y };
+  }
+  function frame() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#f2efe7'; ctx.fillRect(0, 0, cx - SP / 2, H - 10);
+    ctx.fillStyle = 'rgba(44,122,75,0.07)'; ctx.fillRect(cx - SP / 2, 0, W, H - 10);
+    ctx.save(); ctx.setLineDash([2, 2]); ctx.strokeStyle = '#8f8c80';
+    ctx.beginPath(); ctx.moveTo(cx - SP / 2, 4); ctx.lineTo(cx - SP / 2, histBot + 2); ctx.stroke(); ctx.restore();
+    const rowH = (botY - topY) / TIERS;
+    ctx.fillStyle = '#d9d5cc';
+    for (let r = 0; r < TIERS; r++) {
+      const n = Math.min(r + 2, BINS + 1), y = topY + (r + 0.5) * rowH;
+      for (let c = 0; c < n; c++) {
+        const x = cx + (c - (n - 1) / 2) * SP;
+        ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 6.2832); ctx.fill();
+      }
+    }
+    for (let i = balls.length - 1; i >= 0; i--) {
+      const b = balls[i];
+      b.p += 0.10;
+      const pt = pos(b);
+      b.trail.push(pt); if (b.trail.length > 9) b.trail.shift();
+      for (let k = 0; k < b.trail.length; k++) {
+        ctx.fillStyle = 'rgba(20,19,15,' + ((k / b.trail.length) * 0.25).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(b.trail[k].x, b.trail[k].y, 1.1, 0, 6.2832); ctx.fill();
+      }
+      ctx.fillStyle = '#14130f'; ctx.fillRect(pt.x - 1.7, pt.y - 1.7, 3.4, 3.4);
+      if (pt.y > histBot - 4) { counts[b.bin + 3]++; balls.splice(i, 1); }
+    }
+    const mx = Math.max(1, Math.max.apply(null, counts));
+    for (let i = 0; i < BINS; i++) {
+      const bin = i - 3, w = SP * 0.74, x = cx + bin * SP - w / 2;
+      const h = (counts[i] / mx) * (histBot - 86), y = histBot - h;
+      ctx.fillStyle = bin > 0 ? 'rgba(44,122,75,0.75)' : 'rgba(143,140,128,0.65)';
+      if (h > 0.5) ctx.fillRect(x, y, w, h);
+      if (counts[i]) {
+        ctx.fillStyle = '#6b6860'; ctx.font = '7px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+        ctx.fillText(String(counts[i]), x + w / 2, y - 2);
+      }
+      ctx.fillStyle = '#9a978c'; ctx.font = '7px "IBM Plex Mono", monospace'; ctx.textAlign = 'center';
+      ctx.fillText((bin > 0 ? '+' : '') + bin, x + w / 2, histBot + 9);
+    }
+    requestAnimationFrame(frame);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(frame);
+})();
+
+resetState();
+
+// Sanity check: full-speed JS backtest trade count should match the Python reference.
+const jsTrades = generateAllTrades(candles);
+if (jsTrades.length !== pythonTrades.length) {
+  console.warn('JS/Python trade count mismatch', jsTrades.length, pythonTrades.length);
+} else {
+  console.log('JS/Python trade count parity OK:', jsTrades.length);
+}
+window.__jsTrades = jsTrades; // exposed for headless test harnesses
+</script>
+</body>
+</html>
